@@ -11,4 +11,14 @@ env/
 data/processed/*.npz
 data/processed/*.npy
 *.log
-docs/
+results/figures/*
+!results/figures/.gitkeep
+results/metrics/*
+!results/metrics/.gitkeep
+results/saved_models/*
+!results/saved_models/.gitkeep
+docs/*
+!docs/Algorithms
+!docs/reports
+!docs/Practice Exercise 3.2.pdf
+
