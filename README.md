@@ -2,6 +2,10 @@
 
 Dự án bài tập thực hành môn Học máy thực hiện phân đoạn ảnh màu thành $K$ phân vùng cụm màu sắc bằng thuật toán **K-Means Clustering** theo đúng yêu cầu của **Practice Exercise 3 (Additional) / Practice Exercise 3.2.pdf**.
 
+- **Kho chứa mã nguồn (GitHub Repo):** [https://github.com/iamtien77/Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION](https://github.com/iamtien77/Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION)
+- **Danh sách công việc (Issues):** [https://github.com/iamtien77/Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION/issues](https://github.com/iamtien77/Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION/issues)
+- **Đóng góp & Pull Requests:** [https://github.com/iamtien77/Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION/pulls](https://github.com/iamtien77/Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION/pulls)
+
 ---
 
 ## 1. Cấu Trúc Thư Mục Dự Án (Project Layout)
@@ -87,18 +91,9 @@ Quy trình bài lab được thực hiện theo đúng 5 bước đề ra trong 
 
 Thực hiện phân cụm K-Means theo đúng 4 bước mô tả trong đề bài:
 
-1. **Khởi tạo (Initialize)**: Chọn ngẫu nhiên $K$ tâm cụm màu ban đầu:
-   $$
-   \mu_1, \mu_2, \dots, \mu_K \in \mathbb{R}^3
-   $$
-2. **Gán cụm (Assign)**: Gán từng điểm ảnh vào tâm cụm gần nhất dựa trên khoảng cách bình phương Euclidean:
-   $$
-   c_i = \arg\min_{j \in \{0, \dots, K-1\}} \|x_i - \mu_j\|^2
-   $$
-3. **Cập nhật (Update)**: Cập nhật tọa độ tâm cụm bằng trung bình cộng các điểm ảnh thuộc cụm:
-   $$
-   \mu_j = \frac{1}{|S_j|} \sum_{x \in S_j} x
-   $$
+1. **Khởi tạo (Initialize)**: Chọn ngẫu nhiên $K$ tâm cụm màu ban đầu: $\mu_1, \mu_2, \dots, \mu_K \in \mathbb{R}^3$.
+2. **Gán cụm (Assign)**: Gán từng điểm ảnh vào tâm cụm gần nhất dựa trên khoảng cách bình phương Euclidean: $c_i = \arg\min_{j \in \{0, \dots, K-1\}} \|x_i - \mu_j\|^2$.
+3. **Cập nhật (Update)**: Cập nhật tọa độ tâm cụm bằng trung bình cộng các điểm ảnh thuộc cụm: $\mu_j = \frac{1}{|S_j|} \sum_{x \in S_j} x$.
 4. **Lặp lại (Repeat)**: Lặp lại quá trình gán và cập nhật cho đến khi hội tụ (độ dịch chuyển của các tâm nhỏ hơn ngưỡng sai số `tol` hoặc đạt số vòng lặp tối đa `max_iter`).
 
 **Các phương án triển khai cụ thể của nhóm:**
