@@ -3,22 +3,23 @@
 MODULE: K-MEANS TỪ ĐẦU (K-MEANS FROM SCRATCH & CONVERGENCE TRACKING)
 =============================================================================
 Mục đích (Đáp ứng đầy đủ Task 3 trong đề bài Practice Exercise 3.2):
-- Khởi tạo K tâm cụm ngẫu nhiên đại diện cho màu trung bình của từng cụm:
-  "Initialize K random centroids, each representing the mean color of a cluster."
-- Gán mỗi pixel về tâm cụm gần nhất dựa trên khoảng cách Euclidean:
-  "Assign each pixel to the nearest centroid based on Euclidean distance."
-- Cập nhật tâm cụm bằng trung bình cộng các pixel thuộc cụm:
-  "Update the centroids as the mean of the pixels assigned to each cluster."
-- Lặp lại các bước gán và cập nhật cho đến khi hội tụ:
-  "Repeat the assignment and update steps until convergence."
-- Theo dõi lịch sử hội tụ (Inertia, centroid shift, label change ratio) qua từng vòng lặp.
+- Khởi tạo K tâm cụm ngẫu nhiên đại diện cho màu trung bình của từng cụm.
+- Gán mỗi pixel về tâm cụm gần nhất dựa trên khoảng cách Euclidean bình phương.
+- Cập nhật tâm cụm bằng trung bình cộng các pixel thuộc cụm; xử lý an toàn cụm rỗng.
+- Lặp lại hai bước gán và cập nhật cho đến khi hội tụ hoặc đạt ngưỡng max_iter.
+- Ghi nhận đầy đủ lịch sử hội tụ (Inertia, centroid shift, label change ratio).
 =============================================================================
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
-from src.config import RANDOM_SEED, MAX_ITER, TOLERANCE
+
+from src.config import MAX_ITER, RANDOM_SEED, TOLERANCE
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class KMeansFromScratch:
@@ -34,88 +35,275 @@ class KMeansFromScratch:
         random_state: int = RANDOM_SEED,
     ):
         """
-        Ý LÀM:
-        1. Lưu các siêu tham số: số cụm K (n_clusters), số vòng lặp tối đa (max_iter),
-           ngưỡng dừng hội tụ (tol), seed ngẫu nhiên (random_state).
-        2. Khởi tạo các thuộc tính lưu trạng thái:
-           - centroids: Tọa độ tâm cụm kích thước (K, D).
-           - labels_: Nhãn cụm của từng điểm ảnh (N,).
-           - inertia_: Quán tính tổng bình phương khoảng cách WCSS.
-           - n_iter_: Số vòng lặp thực tế đã chạy trước khi dừng.
-           - history_: Danh sách lưu chi tiết lịch sử hội tụ qua từng vòng lặp.
+        Khởi tạo siêu tham số và các thuộc tính lưu trạng thái huấn luyện K-Means.
+
+        Tham số:
+            n_clusters: Số lượng cụm màu K (> 0).
+            max_iter: Giới hạn số vòng lặp tối đa (>= 1).
+            tol: Ngưỡng hội tụ độ dịch chuyển lớn nhất của tâm cụm (>= 0).
+            random_state: Seed cố định để tái lập kết quả khởi tạo ngẫu nhiên.
         """
-        pass
+        if not isinstance(n_clusters, (int, np.integer)) or n_clusters < 1:
+            raise ValueError(f"n_clusters must be a positive integer, got {n_clusters}.")
+        if not isinstance(max_iter, (int, np.integer)) or max_iter < 1:
+            raise ValueError(f"max_iter must be a positive integer, got {max_iter}.")
+        if tol < 0.0:
+            raise ValueError(f"tol must be non-negative, got {tol}.")
+
+        self.n_clusters: int = int(n_clusters)
+        self.max_iter: int = int(max_iter)
+        self.tol: float = float(tol)
+        self.random_state: int = int(random_state)
+
+        self.centroids: Optional[np.ndarray] = None
+        self.cluster_centers_: Optional[np.ndarray] = None
+        self.labels_: Optional[np.ndarray] = None
+        self.inertia_: Optional[float] = None
+        self.n_iter_: int = 0
+        self.history_: List[Dict[str, Any]] = []
+        self.stop_reason_: Optional[str] = None
+        self.empty_cluster_events_: int = 0
+
+    def _validate_matrix(self, X: np.ndarray) -> np.ndarray:
+        """Kiểm định ma trận đặc trưng 2D (N, D) phải không rỗng và hoàn toàn hữu hạn."""
+        arr = np.asarray(X, dtype=np.float64)
+        if arr.ndim != 2 or arr.shape[0] == 0 or arr.shape[1] == 0:
+            raise ValueError("Input X must be a non-empty 2D array of shape (N, D).")
+        if not np.isfinite(arr).all():
+            raise ValueError("Input X contains NaN or Inf values.")
+        return arr
 
     def _init_centroids(self, X: np.ndarray) -> np.ndarray:
         """
-        Ý LÀM (Task 3 - Bước 1: Khởi tạo K tâm cụm ngẫu nhiên):
-        1. Sử dụng bộ sinh số ngẫu nhiên np.random.default_rng(self.random_state).
-        2. Chọn ngẫu nhiên K chỉ số mẫu phân biệt (without replacement) từ tập dữ liệu X.
-        3. Trích xuất K vector điểm ảnh tương ứng làm tọa độ tâm cụm ban đầu.
-        4. Trả về ma trận tâm cụm kích thước (K, 3).
-        """
-        pass
+        Khởi tạo K tâm cụm màu phân biệt ngẫu nhiên từ tập pixel bằng seed cố định.
 
-    def _assign_clusters(self, X: np.ndarray, centroids: np.ndarray) -> Tuple[np.ndarray, float]:
-        """
-        Ý LÀM (Task 3 - Bước 2: Gán pixel vào tâm cụm gần nhất theo Euclidean distance):
-        1. Tính khoảng cách bình phương Euclidean từ mỗi pixel tới K tâm cụm:
-           distances = ||X_i - Centroid_k||^2.
-        2. Xác định nhãn cụm gần nhất cho mỗi pixel bằng argmin theo trục tâm cụm.
-        3. Tính WCSS (Inertia) = tổng khoảng cách bình phương từ mỗi pixel tới tâm cụm được gán.
-        4. Trả về tuple gồm: mảng nhãn cụm (labels) và giá trị quán tính WCSS (inertia).
-        """
-        pass
+        Tham số:
+            X: Ma trận điểm ảnh 2D kích thước (N, D).
 
-    def _update_centroids(self, X: np.ndarray, labels: np.ndarray, k: int) -> np.ndarray:
+        Trả về:
+            Ma trận K tâm cụm khởi tạo kích thước (K, D).
         """
-        Ý LÀM (Task 3 - Bước 3: Cập nhật tâm cụm bằng trung bình cộng các pixel):
-        1. Duyệt qua từng cụm c từ 0 đến k - 1:
-        2. Lọc tất cả các pixel có nhãn bằng c: mask = (labels == c).
-        3. Nếu cụm c có chứa điểm ảnh: tính mean(axis=0) của các pixel đó để làm tâm cụm mới.
-        4. Nếu cụm c bị rỗng (empty cluster): gán tâm cụm mới bằng điểm dữ liệu có khoảng cách xa nhất
-           so với các tâm cụm hiện tại để tránh suy biến.
-        5. Trả về ma trận K tâm cụm mới cập nhật.
+        rng = np.random.default_rng(self.random_state)
+        unique_rows = np.unique(X, axis=0)
+        if len(unique_rows) < self.n_clusters:
+            raise ValueError(
+                f"Cannot initialize n_clusters={self.n_clusters} centroids from only "
+                f"{len(unique_rows)} distinct color vectors."
+            )
+
+        selected_indices = rng.choice(len(unique_rows), size=self.n_clusters, replace=False)
+        return unique_rows[selected_indices].astype(np.float64, copy=True)
+
+    def _assign_clusters(
+        self,
+        X: np.ndarray,
+        centroids: np.ndarray,
+        chunk_size: int = 65536,
+    ) -> Tuple[np.ndarray, float]:
         """
-        pass
+        Gán mỗi pixel vào tâm cụm gần nhất theo khoảng cách Euclidean bình phương và tính WCSS.
+
+        Tham số:
+            X: Ma trận điểm ảnh 2D kích thước (N, D).
+            centroids: Ma trận tâm cụm hiện tại kích thước (K, D).
+            chunk_size: Kích thước lô xử lý để tối ưu bộ nhớ khi ảnh có hàng triệu pixel.
+
+        Trả về:
+            Tuple gồm:
+                - labels: Mảng 1D nhãn cụm thuộc [0, K-1] kích thước (N,).
+                - inertia: Tổng bình phương khoảng cách nội cụm (WCSS) không âm.
+        """
+        n_samples = X.shape[0]
+        labels = np.empty(n_samples, dtype=np.int64)
+        total_inertia = 0.0
+        centroids_f64 = np.asarray(centroids, dtype=np.float64)
+
+        # Xử lý theo từng lô để tránh tràn RAM khi X lớn hơn vài trăm nghìn pixel
+        for start in range(0, n_samples, chunk_size):
+            end = min(start + chunk_size, n_samples)
+            block = np.asarray(X[start:end], dtype=np.float64)
+            diff = block[:, np.newaxis, :] - centroids_f64[np.newaxis, :, :]
+            sq_dist = np.sum(diff * diff, axis=2)
+
+            # np.argmin đảm bảo quy tắc chọn chỉ số cụm nhỏ nhất khi khoảng cách bằng nhau
+            block_labels = np.argmin(sq_dist, axis=1)
+            labels[start:end] = block_labels
+            total_inertia += float(np.min(sq_dist, axis=1).sum())
+
+        return labels, float(total_inertia)
+
+    def _update_centroids(
+        self,
+        X: np.ndarray,
+        labels: np.ndarray,
+        k: int,
+    ) -> np.ndarray:
+        """
+        Cập nhật tọa độ từng tâm cụm bằng trung bình cộng các pixel được gán;
+        nếu phát hiện cụm rỗng, chọn pixel xa nhất so với các tâm hợp lệ hiện có.
+
+        Tham số:
+            X: Ma trận điểm ảnh 2D kích thước (N, D).
+            labels: Mảng nhãn cụm (N,).
+            k: Số lượng cụm.
+
+        Trả về:
+            Ma trận K tâm cụm mới kích thước (K, D).
+        """
+        n_features = X.shape[1]
+        new_centroids = np.zeros((k, n_features), dtype=np.float64)
+        empty_clusters: List[int] = []
+        valid_centroids: List[np.ndarray] = []
+
+        for cluster_id in range(k):
+            mask = labels == cluster_id
+            if np.any(mask):
+                centroid_vec = X[mask].mean(axis=0)
+                new_centroids[cluster_id] = centroid_vec
+                valid_centroids.append(centroid_vec)
+            else:
+                empty_clusters.append(cluster_id)
+
+        # Khởi tạo lại cụm rỗng bằng điểm dữ liệu nằm xa nhất so với các tâm đang hoạt động
+        if empty_clusters:
+            self.empty_cluster_events_ += len(empty_clusters)
+            for cluster_id in empty_clusters:
+                logger.warning(
+                    f"Phát hiện cụm rỗng #{cluster_id}; chọn điểm ảnh xa nhất so với tâm hiện có để tái khởi tạo."
+                )
+                if valid_centroids:
+                    ref_matrix = np.vstack(valid_centroids)
+                    # Tính khoảng cách tới tâm gần nhất theo từng lô cho ref_matrix
+                    n_samples = X.shape[0]
+                    min_sq_dists = np.empty(n_samples, dtype=np.float64)
+                    for start in range(0, n_samples, 65536):
+                        end = min(start + 65536, n_samples)
+                        diff = X[start:end, np.newaxis, :] - ref_matrix[np.newaxis, :, :]
+                        min_sq_dists[start:end] = np.min(np.sum(diff * diff, axis=2), axis=1)
+                    farthest_idx = int(np.argmax(min_sq_dists))
+                    recovered_vec = X[farthest_idx].copy()
+                else:
+                    recovered_vec = X[0].copy()
+
+                new_centroids[cluster_id] = recovered_vec
+                valid_centroids.append(recovered_vec)
+
+        return new_centroids
 
     def fit(self, X: np.ndarray) -> "KMeansFromScratch":
         """
-        Ý LÀM (Task 3 - Bước 4: Lặp lại gán & cập nhật cho tới khi hội tụ):
-        1. Khởi tạo K tâm cụm ban đầu bằng _init_centroids(X).
-        2. Khởi tạo vòng lặp từ 1 đến max_iter:
-           a. Gọi _assign_clusters để gán nhãn và tính Inertia hiện tại.
-           b. Tính tỷ lệ điểm bị đổi nhãn so với vòng lặp trước (label_change_ratio).
-           c. Gọi _update_centroids để cập nhật tọa độ tâm cụm mới.
-           d. Tính độ dịch chuyển tâm cụm (centroid_shift) bằng chuẩn khoảng cách Euclidean.
-           e. Ghi nhận thông tin vòng lặp vào history_:
-              [iteration, inertia, centroid_shift, label_change_ratio].
-           f. Kiểm tra điều kiện dừng hội tụ sớm:
-              - Nếu centroid_shift < self.tol hoặc label_change_ratio == 0: dừng lặp.
-        3. Lưu kết quả cuối cùng vào self.centroids, self.labels_, self.inertia_, self.n_iter_.
-        4. Trả về chính đối tượng (self).
+        Huấn luyện K-Means theo vòng lặp: khởi tạo -> gán -> cập nhật -> kiểm tra điều kiện dừng.
+
+        Tham số:
+            X: Ma trận điểm ảnh 2D kích thước (N, D).
+
+        Trả về:
+            Chính đối tượng KMeansFromScratch đã được huấn luyện (self).
         """
-        pass
+        X_arr = self._validate_matrix(X)
+        if X_arr.shape[0] < self.n_clusters:
+            raise ValueError(
+                f"Number of samples ({X_arr.shape[0]}) must be >= n_clusters ({self.n_clusters})."
+            )
+
+        centroids = self._init_centroids(X_arr)
+        self.history_ = []
+        self.empty_cluster_events_ = 0
+        self.n_iter_ = 0
+        self.stop_reason_ = "max_iter"
+        prev_labels: Optional[np.ndarray] = None
+
+        logger.info(
+            f"Bắt đầu huấn luyện KMeansFromScratch (K={self.n_clusters}, max_iter={self.max_iter}, "
+            f"tol={self.tol}, N={X_arr.shape[0]:,})."
+        )
+
+        for iteration in range(1, self.max_iter + 1):
+            labels, inertia = self._assign_clusters(X_arr, centroids)
+
+            if prev_labels is None:
+                label_change_ratio = 1.0
+            else:
+                label_change_ratio = float(np.mean(labels != prev_labels))
+
+            new_centroids = self._update_centroids(X_arr, labels, self.n_clusters)
+            centroid_shift = float(np.max(np.linalg.norm(new_centroids - centroids, axis=1)))
+
+            self.history_.append(
+                {
+                    "iteration": int(iteration),
+                    "inertia": float(inertia),
+                    "centroid_shift": float(centroid_shift),
+                    "label_change_ratio": float(label_change_ratio),
+                }
+            )
+
+            centroids = new_centroids
+            prev_labels = labels
+            self.n_iter_ = iteration
+
+            # Kiểm tra hội tụ theo độ dịch chuyển tâm cụm hoặc khi không còn pixel đổi nhãn
+            if centroid_shift < self.tol or label_change_ratio == 0.0:
+                self.stop_reason_ = "converged"
+                break
+
+        # Gán lại nhãn một lần cuối theo bộ tâm cuối để bảo đảm đồng bộ tuyệt đối với inertia_
+        final_labels, final_inertia = self._assign_clusters(X_arr, centroids)
+        self.centroids = centroids.astype(np.float32)
+        self.cluster_centers_ = self.centroids
+        self.labels_ = final_labels
+        self.inertia_ = float(final_inertia)
+
+        logger.info(
+            f"Hoàn tất KMeansFromScratch sau {self.n_iter_} vòng lặp | "
+            f"trạng thái dừng='{self.stop_reason_}' | WCSS={self.inertia_:,.2f}."
+        )
+        return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
-        Ý LÀM:
-        1. Tính khoảng cách Euclidean từ mỗi điểm ảnh trong X tới self.centroids.
-        2. Trả về nhãn của tâm cụm gần nhất cho từng điểm ảnh.
+        Gán nhãn cụm gần nhất cho ma trận pixel mới dựa trên các tâm cụm đã học.
+
+        Tham số:
+            X: Ma trận điểm ảnh 2D kích thước (M, D).
+
+        Trả về:
+            Mảng 1D nhãn cụm kích thước (M,) kiểu int64.
         """
-        pass
+        if self.centroids is None:
+            raise RuntimeError("KMeansFromScratch model must be fitted before calling predict().")
+
+        X_arr = self._validate_matrix(X)
+        if X_arr.shape[1] != self.centroids.shape[1]:
+            raise ValueError(
+                f"Feature dimension mismatch: expected {self.centroids.shape[1]}, got {X_arr.shape[1]}."
+            )
+
+        labels, _ = self._assign_clusters(X_arr, self.centroids)
+        return labels
 
     def fit_predict(self, X: np.ndarray) -> np.ndarray:
         """
-        Ý LÀM:
-        1. Gọi fit(X).
-        2. Trả về self.labels_.
+        Huấn luyện mô hình trên tập dữ liệu X và trả về ngay mảng nhãn cụm tương ứng.
+
+        Tham số:
+            X: Ma trận điểm ảnh 2D kích thước (N, D).
+
+        Trả về:
+            Mảng 1D nhãn cụm của tập X.
         """
-        pass
+        self.fit(X)
+        assert self.labels_ is not None
+        return self.labels_
 
     def get_convergence_history(self) -> pd.DataFrame:
         """
-        Ý LÀM:
-        Chuyển đổi danh sách self.history_ thành DataFrame bảng theo dõi tiến trình hội tụ.
+        Chuyển đổi lịch sử các vòng lặp thành DataFrame để phân tích và vẽ đồ thị hội tụ.
+
+        Trả về:
+            DataFrame với các cột: ['iteration', 'inertia', 'centroid_shift', 'label_change_ratio'].
         """
-        pass
+        columns = ["iteration", "inertia", "centroid_shift", "label_change_ratio"]
+        if not self.history_:
+            return pd.DataFrame(columns=columns)
+        return pd.DataFrame(self.history_, columns=columns)
