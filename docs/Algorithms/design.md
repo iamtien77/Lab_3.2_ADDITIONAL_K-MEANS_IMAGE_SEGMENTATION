@@ -183,7 +183,7 @@ $$
 1. **Kiểm tra đầu vào:** ảnh và ma trận không rỗng; K là số nguyên dương, không vượt số màu phân biệt của dữ liệu làm việc; các giá trị đều hữu hạn.
 2. **Khởi tạo:** lấy ngẫu nhiên K màu phân biệt từ tập pixel bằng seed đã chọn.
 3. **Gán cụm:** mỗi pixel nhận nhãn của tâm gần nhất theo Euclidean distance; khi hòa, dùng cùng một quy tắc chọn chỉ số nhỏ nhất.
-4. **Cập nhật:** lấy trung bình các pixel của từng cụm. Nếu một cụm rỗng, giữ tâm của cụm đó ở vòng trước để tránh phép lấy trung bình trên tập rỗng; ghi nhận sự kiện để nhóm giải thích.
+4. **Cập nhật:** lấy trung bình các pixel của từng cụm. Nếu một cụm rỗng, gán lại tâm cụm đó bằng điểm ảnh ở xa các tâm còn lại nhất để tránh phép lấy trung bình trên tập rỗng; ghi nhận sự kiện để nhóm giải thích.
 5. **Kiểm tra dừng:** dùng độ dịch chuyển lớn nhất của các tâm không vượt ngưỡng đã chọn. Đề xuất ngưỡng `1e-4` trên thang RGB `[0,255]`, giới hạn 300 vòng; ghi rõ dừng vì hội tụ hay hết giới hạn.
 6. **Hoàn tất:** gán lại nhãn theo bộ tâm cuối và tính WCSS tương ứng để nhãn, tâm và phép đo nhất quán.
 
@@ -219,7 +219,7 @@ Hiển thị ảnh đầu vào và ảnh phân đoạn ở kích thước ban đ
 | Dùng RGB làm baseline                        | Các vùng màu trên ảnh được chọn có được phân biệt phù hợp với mục tiêu minh họa không? | Quan sát ảnh phân đoạn cạnh ảnh đầu vào, ghi lại vùng cần xem xét.       |
 | Chọn một K khởi đầu                       | K đã chọn có phù hợp với mức đơn giản hóa màu mong muốn không?                                | Nếu còn thời gian, thử thêm vài K trên cùng ảnh và cùng quy trình.         |
 | Cố định seed                                | Lần thực hành lặp lại có nhất quán với cấu hình đã ghi không?                                  | Lặp lại cùng ảnh, cấu hình và môi trường; đối chiếu nhãn và tâm.       |
-| Giữ tâm khi cụm rỗng                       | Trường hợp cụm rỗng có được xử lý hợp lệ không?                                                | Chuẩn bị tình huống kiểm tra riêng, kiểm tra tâm hữu hạn và nhãn hợp lệ. |
+| Chọn pixel xa nhất khi cụm rỗng      | Trường hợp cụm rỗng có được xử lý hợp lệ không?                                                | Chuẩn bị tình huống kiểm tra riêng, kiểm tra tâm hữu hạn và nhãn hợp lệ. |
 | Đặt ngưỡng dừng và giới hạn vòng lặp | Thuật toán dừng vì điều kiện nào?                                                                    | Kiểm tra độ dịch chuyển tâm, số vòng lặp và lý do dừng.                    |
 
 Phạm vi đánh giá là phân cụm màu trên ảnh phục vụ bài lab. Việc đánh giá nhận diện vật thể, tính tối ưu toàn cục hoặc hiệu quả trên tập ảnh lớn nằm ngoài kế hoạch này.
