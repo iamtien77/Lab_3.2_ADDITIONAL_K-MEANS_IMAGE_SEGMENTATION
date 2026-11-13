@@ -60,7 +60,7 @@ if not DEFAULT_IMAGE_PATH.exists():
 
 # 3. SIÊU THAM SỐ VÀ CẤU HÌNH THỰC NGHIỆM
 RANDOM_SEED: int = 42
-TARGET_SIZE: int = 256           # Kích thước resize ảnh cho K-Means (256x256)
+TARGET_SIZE: int = 256           # Giới hạn cạnh dài nhất khi thu nhỏ ảnh
 BASELINE_K: int = 4              # Số cụm khởi tạo ban đầu
 FINAL_K: int = 5                 # Số cụm tối ưu từ Elbow Method
 K_SEARCH_MIN: int = 2            # Dải quét K nhỏ nhất
