@@ -1,0 +1,52 @@
+[
+  {
+    "image_path": "data/raw/image-liquid.jpg",
+    "status": "processed",
+    "output_dir": "data/processed/image-liquid",
+    "pixel_matrix_shape": [
+      65536,
+      3
+    ]
+  },
+  {
+    "image_path": "data/raw/image-sea.png",
+    "status": "processed",
+    "output_dir": "data/processed/image-sea",
+    "pixel_matrix_shape": [
+      36608,
+      3
+    ]
+  },
+  {
+    "image_path": "data/raw/image-sea1.png",
+    "status": "processed",
+    "output_dir": "data/processed/image-sea1",
+    "pixel_matrix_shape": [
+      43776,
+      3
+    ]
+  },
+  {
+    "image_path": "data/raw/image-sea2.png",
+    "status": "rejected",
+    "reason": "Ảnh tại data/raw/image-sea2.png không hợp lệ: Ảnh có kênh alpha chưa được hỗ trợ trong baseline."
+  },
+  {
+    "image_path": "data/raw/image.png",
+    "status": "processed",
+    "output_dir": "data/processed/image",
+    "pixel_matrix_shape": [
+      55040,
+      3
+    ]
+  },
+  {
+    "image_path": "data/raw/image_copy.png",
+    "status": "processed",
+    "output_dir": "data/processed/image_copy",
+    "pixel_matrix_shape": [
+      43776,
+      3
+    ]
+  }
+]

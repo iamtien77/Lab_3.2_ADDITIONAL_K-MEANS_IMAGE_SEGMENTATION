@@ -1,0 +1,27 @@
+{
+  "filename": "image_copy.png",
+  "image_path": "data/raw/image_copy.png",
+  "original_shape": [
+    365,
+    547,
+    3
+  ],
+  "total_pixels": 199655,
+  "file_size_bytes": 350559,
+  "color_space": "RGB",
+  "dtype": "float32",
+  "source_color_space": "BGR",
+  "resized_shape": [
+    171,
+    256
+  ],
+  "image_dtype": "uint8",
+  "value_range": [
+    0,
+    255
+  ],
+  "observed_range": [
+    0.0,
+    255.0
+  ]
+}

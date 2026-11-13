@@ -1,0 +1,27 @@
+{
+  "filename": "image-sea.png",
+  "image_path": "data/raw/image-sea.png",
+  "original_shape": [
+    3264,
+    5824,
+    3
+  ],
+  "total_pixels": 19009536,
+  "file_size_bytes": 4400920,
+  "color_space": "RGB",
+  "dtype": "float32",
+  "source_color_space": "BGR",
+  "resized_shape": [
+    143,
+    256
+  ],
+  "image_dtype": "uint8",
+  "value_range": [
+    0,
+    255
+  ],
+  "observed_range": [
+    4.0,
+    255.0
+  ]
+}

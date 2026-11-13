@@ -1,0 +1,27 @@
+{
+  "filename": "image-liquid.jpg",
+  "image_path": "data/raw/image-liquid.jpg",
+  "original_shape": [
+    3264,
+    3264,
+    3
+  ],
+  "total_pixels": 10653696,
+  "file_size_bytes": 2145517,
+  "color_space": "RGB",
+  "dtype": "float32",
+  "source_color_space": "BGR",
+  "resized_shape": [
+    256,
+    256
+  ],
+  "image_dtype": "uint8",
+  "value_range": [
+    0,
+    255
+  ],
+  "observed_range": [
+    2.0,
+    253.0
+  ]
+}
