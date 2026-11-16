@@ -3,16 +3,18 @@
 MODULE: TÁI TẠO VÀ PHÂN ĐOẠN ẢNH (IMAGE SEGMENTER)
 =============================================================================
 Mục đích (Đáp ứng đầy đủ Task 4 trong đề bài Practice Exercise 3.2):
-- Thay thế mỗi pixel bằng màu của tâm cụm tương ứng:
-  "Replace each pixel with the color of its assigned cluster centroid."
-- Reshape ảnh phân đoạn trở lại kích thước không gian 2D:
-  "Reshape the segmented image back to its original dimensions."
-- Trích xuất bản đồ nhãn (Label Map), mặt nạ phân vùng (Masks) và đường ranh giới cụm (Boundaries).
+- Thay thế mỗi pixel bằng màu của tâm cụm tương ứng.
+- Reshape ảnh phân đoạn trở lại kích thước không gian 2D.
+- Trích xuất bản đồ nhãn (Label Map), mặt nạ phân vùng (Masks) và đường ranh giới (Boundaries).
 =============================================================================
 """
 
 from typing import Tuple, Dict, Any, Optional
 import numpy as np
+
+from src.utils.logger import get_logger
+
+logger = get_logger("ImageSegmenter")
 
 
 class ImageSegmenter:
@@ -21,11 +23,8 @@ class ImageSegmenter:
     """
 
     def __init__(self):
-        """
-        Ý LÀM:
-        Khởi tạo đối tượng phân đoạn ảnh.
-        """
-        pass
+        """Khởi tạo đối tượng phân đoạn ảnh."""
+        logger.info("ImageSegmenter khởi tạo.")
 
     def reconstruct_segmented_image(
         self,
@@ -34,14 +33,38 @@ class ImageSegmenter:
         target_shape: Tuple[int, int],
     ) -> np.ndarray:
         """
-        Ý LÀM (Đáp ứng Task 4 - Phân đoạn ảnh và Reshape về kích thước không gian):
-        1. Thay thế mỗi pixel bằng vector màu của tâm cụm được gán:
-           segmented_pixels = centroids[labels].
-        2. Ép kiểu giá trị màu về uint8 [0, 255] (cắt tỉa np.clip nếu cần).
-        3. Reshape mảng 1D (N_pixels, 3) trở lại kích thước ảnh 2D (target_shape[0], target_shape[1], 3).
-        4. Trả về mảng ảnh phân đoạn đã định dạng màu chuẩn RGB.
+        Tái tạo ảnh phân đoạn tại kích thước làm việc (ảnh đã resize).
+        Mỗi pixel được thay thế bằng màu tâm cụm của nó.
+
+        Args:
+            labels:       (N,) nhãn cụm cho từng pixel.
+            centroids:    (K, 3) tâm cụm màu.
+            target_shape: (h, w) kích thước ảnh làm việc.
+        Returns:
+            ảnh phân đoạn (h, w, 3) kiểu uint8.
         """
-        pass
+        labels = np.asarray(labels, dtype=np.int32)
+        centroids = np.asarray(centroids, dtype=np.float32)
+
+        h, w = target_shape
+        n_pixels = h * w
+
+        if len(labels) != n_pixels:
+            raise ValueError(
+                f"Số nhãn ({len(labels)}) không khớp với h×w={n_pixels} (target_shape={target_shape})."
+            )
+
+        # Ánh xạ nhãn → màu tâm
+        segmented_pixels = centroids[labels]  # (N, 3)
+
+        # Clip về [0, 255] và chuyển sang uint8
+        segmented_pixels = np.clip(segmented_pixels, 0, 255).astype(np.uint8)
+
+        # Reshape → (h, w, 3)
+        segmented_img = segmented_pixels.reshape(h, w, 3)
+
+        logger.info(f"Tái tạo ảnh phân đoạn: shape={segmented_img.shape}")
+        return segmented_img
 
     def reconstruct_original_size(
         self,
@@ -51,14 +74,55 @@ class ImageSegmenter:
         resized_shape: Tuple[int, int],
     ) -> np.ndarray:
         """
-        Ý LÀM (Phục hồi ảnh phân đoạn về độ phân giải gốc ban đầu):
-        1. Reshape nhãn cụm thành ma trận 2D kích thước (H_resized, W_resized).
-        2. Áp dụng phóng đại nhãn về kích thước gốc (H_orig, W_orig) bằng phương pháp
-           nội suy láng giềng gần nhất (Nearest Neighbor) để giữ nguyên nhãn cụm rời rạc.
-        3. Ánh xạ các nhãn đã phóng đại sang màu tâm cụm tương ứng centroids[labels_orig].
-        4. Trả về ảnh phân đoạn ở độ phân giải gốc sắc nét mà không bị mờ nhòe.
+        Phục hồi ảnh phân đoạn về độ phân giải gốc (H_orig, W_orig).
+        Phương pháp: Nearest-neighbor upscale nhãn → ánh xạ màu.
+        Không học lại tâm; không reshape nhãn resized thành nhãn gốc trực tiếp.
+
+        Args:
+            labels_resized: (N_resized,) nhãn của ảnh làm việc.
+            centroids:      (K, 3) tâm cụm màu.
+            original_shape: (H_orig, W_orig, 3) shape ảnh gốc.
+            resized_shape:  (h_resized, w_resized) shape ảnh làm việc.
+        Returns:
+            ảnh phân đoạn (H_orig, W_orig, 3) uint8.
         """
-        pass
+        h_r, w_r = resized_shape
+        H_orig, W_orig = original_shape[0], original_shape[1]
+
+        # Reshape nhãn resized thành 2D label map
+        label_map_resized = labels_resized.reshape(h_r, w_r).astype(np.int32)
+
+        # Upscale label map bằng nearest neighbor (giữ nguyên nhãn rời rạc)
+        try:
+            import cv2
+            label_map_orig = cv2.resize(
+                label_map_resized.astype(np.float32),
+                (W_orig, H_orig),
+                interpolation=cv2.INTER_NEAREST,
+            ).astype(np.int32)
+        except ImportError:
+            # Fallback: lặp nhãn bằng numpy repeat
+            scale_h = H_orig / h_r
+            scale_w = W_orig / w_r
+            row_idx = np.minimum(
+                (np.arange(H_orig) / scale_h).astype(np.int32), h_r - 1
+            )
+            col_idx = np.minimum(
+                (np.arange(W_orig) / scale_w).astype(np.int32), w_r - 1
+            )
+            label_map_orig = label_map_resized[np.ix_(row_idx, col_idx)]
+
+        # Ánh xạ nhãn → màu tâm
+        centroids = np.asarray(centroids, dtype=np.float32)
+        labels_flat = label_map_orig.flatten()
+        segmented_pixels = centroids[labels_flat]
+        segmented_img = np.clip(segmented_pixels, 0, 255).astype(np.uint8)
+        segmented_img = segmented_img.reshape(H_orig, W_orig, 3)
+
+        logger.info(
+            f"Phục hồi ảnh về kích thước gốc: ({h_r}×{w_r}) → ({H_orig}×{W_orig})"
+        )
+        return segmented_img
 
     def extract_cluster_masks(
         self,
@@ -67,13 +131,17 @@ class ImageSegmenter:
         k: int,
     ) -> Dict[int, np.ndarray]:
         """
-        Ý LÀM:
-        1. Reshape nhãn 1D thành bản đồ nhãn 2D (H, W).
-        2. Duyệt qua từng cụm c từ 0 đến k - 1:
-           - Tạo mặt nạ nhị phân uint8: mask = (label_map == c) * 255.
-        3. Trả về từ điển chứa mặt nạ nhị phân của từng phân khúc cụm.
+        Tạo mặt nạ nhị phân cho từng cụm.
+        Returns: {cluster_id: mask_uint8 (H, W) với 255=thuộc cụm, 0=không}
         """
-        pass
+        label_map = labels.reshape(shape[0], shape[1]).astype(np.int32)
+        masks: Dict[int, np.ndarray] = {}
+
+        for c in range(k):
+            mask = ((label_map == c) * 255).astype(np.uint8)
+            masks[c] = mask
+
+        return masks
 
     def extract_cluster_boundaries(
         self,
@@ -81,10 +149,19 @@ class ImageSegmenter:
         shape: Tuple[int, int],
     ) -> np.ndarray:
         """
-        Ý LÀM:
-        1. Reshape nhãn thành bản đồ 2D (H, W).
-        2. Tính toán độ biến thiên nhãn giữa các pixel liền kề (theo chiều ngang và chiều dọc).
-        3. Điểm nào có sự thay đổi nhãn với láng giềng được đánh dấu là đường ranh giới (boundary = 255).
-        4. Trả về mặt nạ nhị phân chứa các đường ranh giới phân khúc.
+        Trích xuất đường ranh giới giữa các cụm.
+        Returns: mặt nạ nhị phân (H, W) uint8 — 255 = biên giới cụm.
         """
-        pass
+        label_map = labels.reshape(shape[0], shape[1]).astype(np.int32)
+
+        # Phát hiện thay đổi nhãn theo chiều ngang và dọc
+        diff_h = np.abs(np.diff(label_map, axis=0))  # (H-1, W)
+        diff_w = np.abs(np.diff(label_map, axis=1))  # (H, W-1)
+
+        boundary = np.zeros(shape, dtype=np.uint8)
+
+        # Đánh dấu pixel biên giới (theo cả hai chiều)
+        boundary[:-1, :] |= (diff_h > 0).astype(np.uint8) * 255
+        boundary[:, :-1] |= (diff_w > 0).astype(np.uint8) * 255
+
+        return boundary
