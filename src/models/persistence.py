@@ -10,7 +10,12 @@ Mục đích:
 
 from pathlib import Path
 from typing import Any, Dict, Tuple, Optional
+from datetime import datetime
 import joblib
+
+from src.utils.logger import get_logger
+
+logger = get_logger("ModelPersistence")
 
 
 def save_model_pipeline(
@@ -19,23 +24,40 @@ def save_model_pipeline(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """
-    Ý LÀM:
-    1. Tạo thư mục cha của save_path nếu chưa tồn tại.
-    2. Đóng gói đối tượng dictionary gồm: model và metadata (optimal_k, centroids, timestamps).
-    3. Sử dụng joblib.dump để lưu đối tượng xuống ổ đĩa với độ nén tối ưu.
-    4. Ghi log hoàn thành lưu trữ.
+    Đóng gói model + metadata và lưu xuống đĩa bằng joblib.
+    metadata được bổ sung trường saved_at tự động.
     """
-    pass
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if metadata is None:
+        metadata = {}
+
+    metadata["saved_at"] = datetime.now().isoformat()
+
+    payload = {
+        "model": model,
+        "metadata": metadata,
+    }
+
+    joblib.dump(payload, save_path, compress=3)
+    logger.info(f"Đã lưu mô hình tại: {save_path}")
 
 
 def load_model_pipeline(
     load_path: Path,
 ) -> Tuple[Any, Dict[str, Any]]:
     """
-    Ý LÀM:
-    1. Kiểm tra sự tồn tại của file tại load_path.
-    2. Sử dụng joblib.load để nạp đối tượng từ đĩa.
-    3. Tách mô hình (model) và siêu dữ liệu (metadata).
-    4. Trả về tuple (model, metadata).
+    Nạp mô hình từ file .joblib.
+    Returns: (model, metadata)
+    Raises: FileNotFoundError nếu file không tồn tại.
     """
-    pass
+    load_path = Path(load_path)
+    if not load_path.exists():
+        raise FileNotFoundError(f"Không tìm thấy file mô hình: {load_path}")
+
+    payload = joblib.load(load_path)
+    model = payload["model"]
+    metadata = payload.get("metadata", {})
+    logger.info(f"Đã nạp mô hình từ: {load_path} (saved_at={metadata.get('saved_at', 'N/A')})")
+    return model, metadata

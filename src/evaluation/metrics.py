@@ -20,12 +20,17 @@ def compute_wcss(
     labels: np.ndarray,
 ) -> float:
     """
-    Ý LÀM:
-    1. Tính khoảng cách bình phương từ mỗi điểm X[i] tới centroids[labels[i]].
-    2. Tính tổng toàn bộ khoảng cách để ra WCSS (Within-Cluster Sum of Squares).
-    3. Trả về giá trị WCSS.
+    Tính tổng bình phương khoảng cách từ mỗi điểm X[i] tới centroids[labels[i]].
+    Returns: WCSS (Within-Cluster Sum of Squares) — số thực không âm hữu hạn.
     """
-    pass
+    X = np.asarray(X, dtype=np.float64)
+    centroids = np.asarray(centroids, dtype=np.float64)
+    labels = np.asarray(labels, dtype=np.int32)
+
+    assigned = centroids[labels]          # (N, D)
+    diff = X - assigned                   # (N, D)
+    wcss = float(np.sum(diff ** 2))
+    return wcss
 
 
 def compute_silhouette(
@@ -35,14 +40,31 @@ def compute_silhouette(
     random_state: int = 42,
 ) -> float:
     """
-    Ý LÀM:
-    1. Kiểm tra số cụm hợp lệ (phải >= 2 và < số mẫu).
-    2. Nếu số lượng điểm ảnh lớn (ví dụ 65,536 điểm), thực hiện lấy mẫu ngẫu nhiên
-       phân tầng (Stratified subsample) tối đa max_samples điểm để tối ưu hóa thời gian tính toán.
-    3. Gọi silhouette_score từ sklearn.metrics trên tập mẫu đã trích xuất.
-    4. Trả về hệ số Silhouette trung bình [-1.0, 1.0].
+    Tính Silhouette Score trên tập mẫu đại diện (tối đa max_samples điểm).
+    Trả về -1.0 nếu số cụm không hợp lệ.
     """
-    pass
+    n_samples = len(X)
+    n_labels = len(np.unique(labels))
+
+    # Điều kiện hợp lệ: 2 <= n_labels <= n_samples - 1
+    if n_labels < 2 or n_labels >= n_samples:
+        return -1.0
+
+    # Stratified subsample nếu dữ liệu lớn
+    if n_samples > max_samples:
+        rng = np.random.default_rng(random_state)
+        idx = rng.choice(n_samples, size=max_samples, replace=False)
+        X_sample = X[idx]
+        labels_sample = labels[idx]
+        # Đảm bảo sample vẫn có đủ n_labels
+        if len(np.unique(labels_sample)) < 2:
+            return -1.0
+    else:
+        X_sample = X
+        labels_sample = labels
+
+    score = silhouette_score(X_sample, labels_sample, metric="euclidean")
+    return float(score)
 
 
 def compare_clustering_labels(
@@ -50,9 +72,9 @@ def compare_clustering_labels(
     labels_b: np.ndarray,
 ) -> Dict[str, float]:
     """
-    Ý LÀM:
-    1. Tính Adjusted Rand Index (ARI): đo mức độ tương đồng nhãn độc lập với cách đánh số.
-    2. Tính Normalized Mutual Information (NMI): đo lượng thông tin tương hỗ giữa 2 cách phân cụm.
-    3. Trả về dictionary: {"ari": float, "nmi": float}.
+    So sánh hai tập nhãn phân cụm bằng ARI và NMI.
+    Returns: {"ari": float, "nmi": float}
     """
-    pass
+    ari = float(adjusted_rand_score(labels_a, labels_b))
+    nmi = float(normalized_mutual_info_score(labels_a, labels_b))
+    return {"ari": ari, "nmi": nmi}

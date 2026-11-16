@@ -18,27 +18,69 @@ def normalize_pixels(
     to_unit_range: bool = False,
 ) -> np.ndarray:
     """
-    Ý LÀM:
-    1. Kiểm tra kiểu dữ liệu đầu vào, ép kiểu sang float32.
-    2. Nếu to_unit_range = True: chia toàn bộ mảng cho 255.0 để đưa giá trị về đoạn [0.0, 1.0].
-    3. Nếu to_unit_range = False: giữ nguyên thang đo gốc [0.0, 255.0] ở định dạng float32.
-    4. Trả về ma trận điểm ảnh đã chuẩn hóa.
+    Chuẩn hóa ma trận điểm ảnh sang float32.
+    - to_unit_range=True  → chia 255.0, kết quả [0.0, 1.0]
+    - to_unit_range=False → giữ thang [0.0, 255.0] ở float32
     """
-    pass
+    result = np.asarray(pixel_matrix, dtype=np.float32)
+    if to_unit_range:
+        result = result / 255.0
+    return result
 
 
 def classify_color(rgb: np.ndarray) -> str:
     """
-    Ý LÀM:
-    1. Trích xuất giá trị 3 kênh R, G, B từ vector tâm cụm.
-    2. Áp dụng luật heuristic phân loại màu trực quan:
-       - Sáng/Trắng: R, G, B đều cao (> 200).
-       - Tối/Đen: R, G, B đều thấp (< 45).
-       - Cam vàng (Yellow-Orange), Nâu cam (Orange-Brown), Đỏ mận (Magenta-Red),
-         Tím than (Dark-Violet), Vàng kim (Golden Yellow), Xanh dương (Blue), v.v.
-    3. Trả về tên màu bằng tiếng Việt kèm tiếng Anh để hiển thị trên biểu đồ và báo cáo.
+    Phân loại màu heuristic từ vector RGB [R, G, B] ∈ [0, 255].
+    Trả về tên màu Tiếng Việt (Tiếng Anh).
     """
-    pass
+    r, g, b = float(rgb[0]), float(rgb[1]), float(rgb[2])
+
+    brightness = (r + g + b) / 3.0
+    max_c = max(r, g, b)
+    min_c = min(r, g, b)
+    saturation = (max_c - min_c) / (max_c + 1e-8)
+
+    # Trắng / Sáng
+    if brightness > 200 and saturation < 0.15:
+        return "Trắng (White)"
+
+    # Đen / Tối
+    if brightness < 45:
+        return "Đen (Black)"
+
+    # Xám
+    if saturation < 0.12:
+        if brightness < 100:
+            return "Xám tối (Dark Gray)"
+        elif brightness < 160:
+            return "Xám (Gray)"
+        else:
+            return "Xám sáng (Light Gray)"
+
+    # Phân loại theo kênh nổi trội
+    if max_c == r:
+        if g > 150 and b < 100:
+            return "Vàng (Yellow)"
+        elif g > 100 and b < 80:
+            return "Cam (Orange)"
+        elif g < 80 and b < 100:
+            return "Đỏ (Red)"
+        else:
+            return "Hồng / Đỏ nhạt (Pink-Red)"
+    elif max_c == g:
+        if r > 150 and b < 100:
+            return "Vàng lục (Yellow-Green)"
+        elif b > 150:
+            return "Lục lam (Cyan)"
+        else:
+            return "Xanh lá (Green)"
+    else:  # max_c == b
+        if r > 150:
+            return "Tím (Violet)"
+        elif g > 100:
+            return "Lam xanh (Cyan-Blue)"
+        else:
+            return "Xanh dương (Blue)"
 
 
 def extract_color_distribution(
@@ -46,16 +88,34 @@ def extract_color_distribution(
     centroids: np.ndarray,
 ) -> List[Dict[str, Any]]:
     """
-    Ý LÀM:
-    1. Nhận vào nhãn cụm (labels) của toàn bộ điểm ảnh và tọa độ các tâm cụm (centroids).
-    2. Duyệt qua từng cụm c từ 0 đến K-1:
-       - Đếm số lượng điểm ảnh thuộc cụm c.
-       - Tính tỷ lệ phần trăm % diện tích = (số điểm ảnh cụm c / tổng số điểm ảnh) * 100.
-       - Lấy giá trị màu RGB của tâm cụm (làm tròn số nguyên uint8).
-       - Gọi hàm classify_color để định danh tên màu cho cụm.
-    3. Đóng gói kết quả thành danh sách các dictionary:
-       [cluster_id, centroid_rgb, pixel_count, share_percentage, color_name].
-    4. Sắp xếp danh sách giảm dần theo tỷ lệ phần trăm diện tích.
-    5. Trả về danh sách thống kê phân bố màu sắc.
+    Thống kê phân bố màu sắc theo từng cụm K-Means.
+    Returns: danh sách dict sắp xếp giảm dần theo share_percentage.
+    Mỗi phần tử: {cluster_id, centroid_rgb, pixel_count, share_percentage, color_name}
     """
-    pass
+    labels = np.asarray(labels, dtype=np.int32)
+    centroids = np.asarray(centroids, dtype=np.float32)
+
+    n_total = len(labels)
+    k = len(centroids)
+    stats: List[Dict[str, Any]] = []
+
+    for c in range(k):
+        mask = labels == c
+        pixel_count = int(np.sum(mask))
+        share_pct = round((pixel_count / n_total) * 100.0, 2)
+
+        # Tâm cụm làm tròn sang uint8
+        centroid_rgb = np.clip(np.round(centroids[c]), 0, 255).astype(np.uint8)
+        color_name = classify_color(centroid_rgb)
+
+        stats.append({
+            "cluster_id": c,
+            "centroid_rgb": centroid_rgb.tolist(),
+            "pixel_count": pixel_count,
+            "share_percentage": share_pct,
+            "color_name": color_name,
+        })
+
+    # Sắp xếp giảm dần theo tỷ lệ
+    stats.sort(key=lambda x: x["share_percentage"], reverse=True)
+    return stats
