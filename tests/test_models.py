@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from sklearn.cluster import KMeans
 
 from src.models.kmeans_opencv import OpenCVKMeansTrainer
 from src.models.kmeans_scratch import KMeansFromScratch
@@ -118,6 +119,49 @@ class TestKMeansModels(unittest.TestCase):
 
         final_model = trainer.fit_final_model(X, optimal_k=4)
         self.assertEqual(final_model.cluster_centers_.shape, (4, 3))
+
+    def test_scratch_final_labels_and_wcss_use_stored_centers(self) -> None:
+        """Nhãn và WCSS cuối phải khớp tâm lưu trữ, kể cả pixel nằm sát ranh giới cụm."""
+        values = np.array(
+            [17, 15, 16, 10, 16, 6, 9, 15, 2, 6, 2, 9, 19, 2, 7, 8, 18, 4, 10, 5],
+            dtype=np.float32,
+        )
+        X = np.repeat(values[:, None], 3, axis=1)
+        model = KMeansFromScratch(n_clusters=3, max_iter=1, random_state=42).fit(X)
+        np.testing.assert_array_equal(model.labels_, model.predict(X))
+        differences = X.astype(np.float64) - model.centroids.astype(np.float64)[model.labels_]
+        self.assertAlmostEqual(model.inertia_, float(np.sum(differences ** 2)), places=10)
+
+    def test_minibatch_accepts_auto_initializations(self) -> None:
+        """Benchmark phải nhận được baseline có n_init='auto' của Scikit-Learn."""
+        X = self._build_synthetic_clusters(10)
+        baseline = KMeans(n_clusters=4, n_init="auto", random_state=42).fit(X)
+        report = MiniBatchKMeansTrainer().compare_batch_sizes(
+            X, k=4, full_kmeans_model=baseline, batch_sizes=[16]
+        )
+        self.assertEqual(len(report), 2)
+        self.assertTrue(np.isfinite(report["inertia"]).all())
+
+    def test_opencv_single_rgb_pixel_keeps_feature_dimensions(self) -> None:
+        """Ảnh một pixel phải tạo một nhãn và một tâm RGB, không tách kênh thành mẫu."""
+        X = np.array([[120.0, 60.0, 30.0]], dtype=np.float32)
+        compactness, labels, centers = OpenCVKMeansTrainer().train(X, k=1)
+        self.assertEqual(labels.shape, (1,))
+        np.testing.assert_array_equal(centers, X)
+        self.assertEqual(compactness, 0.0)
+
+    def test_minibatch_reports_requested_and_effective_batch_sizes(self) -> None:
+        """Bảng benchmark phải phân biệt batch yêu cầu với batch thực dùng trên ảnh nhỏ."""
+        X = self._build_synthetic_clusters(10)
+        baseline = KMeans(n_clusters=4, n_init=10, random_state=42).fit(X)
+        report = MiniBatchKMeansTrainer().compare_batch_sizes(
+            X, k=4, full_kmeans_model=baseline, batch_sizes=[16, 64, 128]
+        )
+        minibatch_rows = report.iloc[1:]
+        self.assertIn("effective_batch_size", report.columns)
+        self.assertEqual(minibatch_rows["batch_size"].tolist(), [16, 64, 128])
+        self.assertEqual(minibatch_rows["effective_batch_size"].tolist(), [16, 40, 40])
+        self.assertIn("b=40", minibatch_rows.iloc[1]["model"])
 
     def test_opencv_cross_validation_and_minibatch(self) -> None:
         """Kiểm tra OpenCVKMeansTrainer (kèm căn chỉnh hoán vị nhãn) và MiniBatchKMeansTrainer."""
