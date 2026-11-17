@@ -296,7 +296,7 @@ footer {
     <span><b>Ảnh chính:</b> <code>image-liquid.jpg</code> (3264×3264 px)</span>
     <span><b>Tập làm việc:</b> 65.536 điểm ảnh (256×256)</span>
     <span><b>Số cụm chọn:</b> K = 5 (baseline K = 4)</span>
-    <span><b>Cập nhật:</b> 12/11/2026</span>
+    <span><b>Cập nhật:</b> 17/11/2026</span>
   </div>
 </header>
 
@@ -325,15 +325,15 @@ footer {
 
   <div class="formula"><b>Tổng bình phương khoảng cách nội cụm (WCSS / Inertia)</b>
   $$\mathrm{WCSS}=\sum_{k=1}^{K}\sum_{x_i\in C_k}\lVert x_i-\mu_k\rVert_2^2$$
-  WCSS đo mức độ cô đặc của các cụm quanh tâm $\mu_k$. Giá trị này giảm đơn điệu khi tăng $K$, nên không thể dùng trực tiếp để chọn $K$ lớn nhất mà cần tìm điểm gập trên đường cong Elbow.</div>
+  WCSS là tổng sai số bình phương khi thay màu pixel bằng tâm cụm. Giá trị nhỏ hơn cho biết màu tâm đại diện sát dữ liệu hơn trên cùng thang đo. Khi tăng K, giá trị tối ưu toàn cục không tăng; tuy nhiên, các lần chạy K-Means riêng biệt có thể dừng ở những nghiệm cục bộ khác nhau. Vì vậy, cần xem cả đường cong WCSS và ảnh phân đoạn, không chỉ chọn K lớn nhất.</div>
 
   <div class="formula"><b>Hệ số Silhouette Score</b>
   $$s(i)=\frac{b(i)-a(i)}{\max(a(i),\,b(i))}\in[-1,\,1]$$
-  Với $a(i)$ là khoảng cách trung bình từ điểm $i$ tới các điểm cùng cụm và $b(i)$ là khoảng cách trung bình nhỏ nhất tới cụm lân cận gần nhất. Do ma trận khoảng cách cặp có độ phức tạp $O(N^2)$, hàm <code>compute_silhouette()</code> lấy mẫu phân tầng tối đa <code>5.000</code> pixel (giữ nguyên tỷ lệ cụm, seed cố định 42). Vì đây là ước lượng trên mẫu con, không nên coi con số này là giá trị tuyệt đối trên toàn bộ 65.536 pixel.</div>
+  Với $a(i)$ là khoảng cách trung bình tới các điểm khác trong cùng cụm, còn $b(i)$ là khoảng cách trung bình nhỏ nhất tới một cụm khác. Điểm gần 1 cho thấy cụm tách khá rõ; điểm gần 0 cho thấy pixel ở gần ranh giới; điểm âm cho thấy pixel có thể gần cụm khác hơn. Chỉ số chỉ xác định khi có ít nhất hai cụm và số cụm nhỏ hơn số mẫu; điểm thuộc cụm đơn được quy ước bằng 0. Để giảm chi phí tính khoảng cách, chương trình lấy tối đa 5.000 pixel, gần theo tỷ lệ các cụm và giữ ít nhất một điểm mỗi cụm nếu đủ ngân sách, với seed 42. Đây là ước lượng trên mẫu con. Khi không đủ điều kiện tính, hàm ghi cảnh báo và trả 0,0 theo quy ước; giá trị này không phải điểm đo chất lượng.</div>
 
   <div class="formula"><b>Độ nhất quán giữa hai bộ nhãn (ARI và NMI)</b>
-  $$\mathrm{ARI},\ \mathrm{NMI}\in[0,\,1]$$
-  Hai chỉ số <code>adjusted_rand_score</code> và <code>normalized_mutual_info_score</code> bất biến với phép hoán vị chỉ số cụm (ví dụ cụm 0 của mô hình này tương ứng cụm 3 của mô hình kia). Để tính thêm tỷ lệ trùng khớp trực tiếp từng pixel giữa Scikit-Learn và OpenCV, chương trình dùng thuật toán Hungarian (<code>linear_sum_assignment</code>) để ánh xạ một-một giữa hai tập nhãn.</div>
+  $$\mathrm{ARI}\in[-1,\,1],\qquad \mathrm{NMI}\in[0,\,1]$$
+  ARI và NMI đo mức đồng thuận giữa hai cách chia cụm, không phải độ chính xác nhận diện vật thể. Giá trị 1 nghĩa là hai phân hoạch trùng nhau dù tên cụm khác nhau. ARI có thể âm, nghĩa là mức đồng thuận thấp hơn kỳ vọng ngẫu nhiên. Để tính tỷ lệ pixel trùng nhãn giữa Scikit-Learn và OpenCV, chương trình dùng Hungarian để ghép các cụm một-một trước khi so sánh.</div>
 </section>
 
 <section id="sec-2">
@@ -361,14 +361,14 @@ footer {
     <span><b>Ảnh phân đoạn &amp; JSON</b><br><small>Xuất kết quả kèm thống kê</small></span>
   </div>
   <ol class="steps">
-    <li><b>Tách biệt dữ liệu huấn luyện và suy luận:</b> Ảnh gốc <code>3264×3264</code> được thu nhỏ xuống cạnh dài tối đa <code>256</code> px để tìm tâm cụm nhanh và ổn định. Ở Bước 5, mô hình đã huấn luyện mới chạy suy luận theo từng lô <code>250.000</code> pixel trên toàn bộ <code>10.653.696</code> pixel của ảnh gốc (hoặc nội suy Nearest Neighbor nếu gọi <code>reconstruct_original_size()</code>).</li>
+    <li><b>Tách biệt dữ liệu huấn luyện và suy luận:</b> Ảnh gốc <code>3264×3264</code> được thu nhỏ xuống cạnh dài tối đa <code>256</code> px để giảm số pixel cần phân cụm. Ở Bước 5, mô hình đã huấn luyện mới chạy suy luận theo từng lô <code>250.000</code> pixel trên toàn bộ <code>10.653.696</code> pixel của ảnh gốc (hoặc nội suy Nearest Neighbor nếu gọi <code>reconstruct_original_size()</code>).</li>
     <li><b>Tách biệt kết quả Notebook và <code>main.py</code>:</b> Bốn notebook trong <code>notebooks/</code> tái sử dụng cùng các module <code>src/</code> nhưng không ghi đè vào <code>results/</code>, giúp bộ artifact của <code>main.py</code> luôn giữ nguyên tính đối chứng.</li>
   </ol>
 </section>
 
 <section id="sec-3">
   <h2>3. Dữ liệu đầu vào và không gian màu</h2>
-  <p>Tệp <code>src/data/loader.py</code> đọc ảnh bằng <code>cv2.imdecode(np.fromfile(...))</code> để hỗ trợ đường dẫn Unicode trên Windows, sau đó chuyển đổi chuẩn về hệ <code>RGB</code> (<code>uint8</code>, shape <code>(H, W, 3)</code>). Với ảnh PNG có kênh Alpha (như <code>image-sea2.png</code> 4 kênh RGBA), kênh trong suốt được loại bỏ bằng <code>BGRA &rarr; RGB</code> hoặc ghép nền trắng phù hợp trước khi đưa vào ma trận màu.</p>
+  <p>Chương trình đọc ảnh bằng <code>cv2.imdecode(np.fromfile(...))</code> để hỗ trợ đường dẫn có dấu trên Windows, sau đó đưa về RGB, kiểu <code>uint8</code>, kích thước <code>(H, W, 3)</code>. Với ảnh có alpha như <code>image-sea2.png</code>, chương trình trộn ảnh lên nền trắng trước khi phân cụm. Nền trắng có thể tạo thêm một vùng màu; đây là lựa chọn xử lý ảnh đầu vào, không phải màu được K-Means tự suy ra.</p>
 
   <div class="table-wrap">
     <table>
@@ -429,7 +429,7 @@ footer {
     </table>
   </div>
 
-  <p>Từ mảng <code>RGB</code>, <code>convert_color_space()</code> hỗ trợ chuyển sang <code>HSV</code> (tách sắc độ Hue, độ bão hòa Saturation, độ sáng Value) và <code>CIE LAB</code> (tách độ sáng $L^*$ và hai trục đối lập màu $a^*, b^*$), kèm phương án dự phòng thuần NumPy khi cần độc lập với OpenCV. Ở mức dữ liệu thô, cả ba hệ màu chỉ biểu diễn lại cùng thông tin pixel theo hệ tọa độ khác nhau; sự khác biệt chỉ phát sinh khi áp dụng khoảng cách Euclidean trong K-Means.</p>
+  <p>Từ RGB, chương trình có thể chuyển sang HSV hoặc CIE LAB để khảo sát cách biểu diễn màu. Khoảng cách Euclidean trong mỗi hệ màu có ý nghĩa khác nhau nên có thể tạo cách chia cụm khác nhau. Chuyển đổi bằng <code>uint8</code> có làm tròn, vì vậy đổi đi rồi đổi lại không bảo đảm giữ nguyên từng giá trị pixel. Nhánh NumPy chỉ hỗ trợ một số phép đổi BGR/RGB/HSV; LAB và các phép đổi còn lại vẫn cần OpenCV.</p>
 
   <figure>
     <img src="../../results/figures/color_spaces_comparison.png" alt="Hình 3.1. Đối chiếu ảnh gốc và các kênh thành phần trên RGB, HSV và CIE LAB.">
@@ -439,7 +439,7 @@ footer {
 
 <section id="sec-4">
   <h2>4. Tiền xử lý và chất lượng ma trận điểm ảnh</h2>
-  <p>Vì ảnh gốc <code>image-liquid.jpg</code> có hơn 10,65 triệu pixel, việc chạy trực tiếp các thuật toán lặp (đặc biệt là cài đặt thuần NumPy và lưới quét Elbow) sẽ tốn chi phí tính toán lớn. Hàm <code>resize_image_aspect_ratio()</code> thu nhỏ ảnh theo cạnh dài tối đa <code>TARGET_SIZE = 256</code> bằng nội suy <code>cv2.INTER_AREA</code> (giảm 99,38% số pixel từ <code>10.653.696</code> xuống <code>65.536</code> điểm ảnh), sau đó <code>flatten_pixels()</code> duỗi thẳng ma trận 3D thành mảng 2D liên tiếp kiểu <code>float32</code> kích thước <code>(65536, 3)</code>.</p>
+  <p>Vì ảnh gốc <code>image-liquid.jpg</code> có hơn 10,65 triệu pixel, việc chạy trực tiếp các thuật toán lặp (đặc biệt là cài đặt thuần NumPy và lưới quét Elbow) sẽ tốn chi phí tính toán lớn. Hàm <code>resize_image()</code> thu nhỏ ảnh theo cạnh dài tối đa <code>TARGET_SIZE = 256</code> bằng nội suy <code>cv2.INTER_AREA</code> (giảm 99,38% số pixel từ <code>10.653.696</code> xuống <code>65.536</code> điểm ảnh), sau đó <code>flatten_pixels()</code> duỗi thẳng ma trận 3D thành mảng 2D liên tiếp kiểu <code>float32</code> kích thước <code>(65536, 3)</code>.</p>
 
   <div class="table-wrap">
     <table>
@@ -491,7 +491,7 @@ footer {
     </table>
   </div>
 
-  <div class="note"><b>Lý do chọn thang giá trị <code>[0..255]</code> ở luồng chính:</b> Với khoảng cách Euclidean đẳng hướng, việc nhân chia đồng nhất cả 3 kênh RGB bởi hằng số $1/255$ chỉ thu phóng lại giá trị WCSS theo hệ số $255^2$ chứ không làm thay đổi nhãn phân cụm. Tuy nhiên, giữ thang <code>[0..255]</code> giúp ngưỡng dừng <code>TOLERANCE = 1e-4</code> mang ý nghĩa trực tiếp (tâm cụm dịch chuyển dưới 0,0001 đơn vị cường độ màu), đồng thời khớp quy ước thang số thực với <code>cv2.kmeans</code> và giữ khoảng trị tương thích khi chuyển đổi qua lại sang <code>HSV</code> hay <code>LAB</code>.</div>
+  <div class="note"><b>Vì sao giữ thang RGB [0..255]?</b> Đây là thang màu của ảnh đầu vào, dễ kiểm tra và phù hợp với dữ liệu đưa vào OpenCV. Chia đồng đều ba kênh cho 255 làm WCSS giảm theo hệ số $255^2$. Về mặt toán học, phép đổi thang này không đổi tâm gần nhất nếu tâm cũng được đổi tương ứng. Khi chạy lại thuật toán, ngưỡng dừng và sai số số học vẫn có thể ảnh hưởng kết quả. Với scratch, ngưỡng $10^{-4}$ áp dụng cho độ dịch chuyển lớn nhất của tâm; không nên hiểu cùng một giá trị ngưỡng là cùng điều kiện dừng ở mọi thư viện.</div>
 </section>
 
 <section id="sec-5">
@@ -500,7 +500,7 @@ footer {
   <ul>
     <li><b><code>KMeansFromScratch</code> (Pure NumPy baseline):</b> Tự viết 4 bước chuẩn theo yêu cầu đề bài, dùng làm mốc đối chứng trực tiếp về độ hội tụ và chất lượng tâm cụm.</li>
     <li><b><code>SklearnKMeansTrainer</code>:</b> Sử dụng <code>KMeans</code> của Scikit-Learn (khởi tạo <code>k-means++</code>, <code>n_init=10</code>) để quét dải <code>K = 2..12</code> và huấn luyện mô hình cuối cùng.</li>
-    <li><b><code>OpenCVKMeansTrainer</code>:</b> Sử dụng <code>cv2.kmeans</code> với cờ <code>KMEANS_PP_CENTERS</code>, thực thi bằng C++ tối ưu SIMD để kiểm định chéo kết quả nhãn và tốc độ.</li>
+    <li><b><code>OpenCVKMeansTrainer</code>:</b> Sử dụng <code>cv2.kmeans</code> với cờ <code>KMEANS_PP_CENTERS</code>, thực thi bằng thư viện OpenCV để đối chiếu nhãn, WCSS và thời gian chạy.</li>
     <li><b><code>MiniBatchKMeansTrainer</code>:</b> Khảo sát biến thể cập nhật tâm cụm theo lô nhỏ (<code>batch_size</code> từ <code>256</code> đến <code>4.096</code>) để đo sự đánh đổi giữa tốc độ và tổn thất WCSS.</li>
   </ul>
 
@@ -508,12 +508,12 @@ footer {
   <div class="formula"><b>Bước gán nhãn và cập nhật tâm cụm</b>
   $$c^{(t)}_i = \arg\min_{k\in\{0,\dots,K-1\}} \lVert x_i - \mu_k^{(t)}\rVert_2^2,\qquad \mu_k^{(t+1)} = \frac{1}{|S_k^{(t)}|}\sum_{x_i\in S_k^{(t)}} x_i$$
   Khi khoảng cách tới hai tâm bằng nhau, hàm <code>np.argmin</code> chọn tâm có chỉ số nhỏ nhất một cách nhất quán. Trước vòng lặp, $K$ tâm ban đầu được bốc ngẫu nhiên từ tập các vector màu phân biệt bằng <code>seed = 42</code> để tránh hai tâm trùng nhau ngay lúc khởi tạo.</div>
-  <p>Trong trường hợp một cụm bị rỗng ($|S_k| = 0$) sau bước gán nhãn, mô hình không để phép chia cho 0 xảy ra mà tìm điểm ảnh có khoảng cách bình phương nhỏ nhất tới tập tâm còn lại đạt giá trị lớn nhất (điểm xa các tâm hiện có nhất) để tái khởi tạo cụm rỗng, đồng thời ghi đếm vào <code>empty_cluster_events_</code> để theo dõi. Điều kiện dừng xảy ra khi mức dịch chuyển lớn nhất của mọi tâm cụm $\max_k \lVert \mu_k^{(t+1)} - \mu_k^{(t)} \rVert_2 \le 10^{-4}$ hoặc chạm giới hạn <code>max_iter = 300</code>. Sau khi thoát vòng lặp, mô hình gán lại nhãn cuối cùng một lượt dựa trên bộ tâm mới nhất để đảm bảo nhãn, tâm cụm và WCSS hoàn toàn đồng bộ.</p>
+  <p>Nếu một cụm rỗng, chương trình đặt lại tâm bằng điểm ảnh xa tập tâm đang được giữ lại nhất, thay vì lấy trung bình trên tập rỗng. Scratch dừng khi độ dịch chuyển lớn nhất của tâm nhỏ hơn <code>tol = 1e-4</code>, khi nhãn không còn thay đổi, hoặc khi đạt <code>max_iter = 300</code>. Đạt giới hạn vòng lặp không có nghĩa là đã hội tụ. Trước khi trả kết quả, chương trình cố định kiểu số của tâm sẽ lưu, rồi gán lại nhãn và tính WCSS theo đúng bộ tâm đó.</p>
 </section>
 
 <section id="sec-6">
   <h2>6. Hội tụ baseline và khảo sát Elbow Method</h2>
-  <p>Trên ảnh làm việc <code>256×256</code> (<code>K = 4</code>), <code>KMeansFromScratch</code> giảm mạnh WCSS ngay trong 5 vòng lặp đầu và hội tụ hoàn toàn ở vòng thứ <strong>26</strong> với lý do <code>converged</code> (độ dịch tâm cụm về <code>0,0</code>), không phát sinh sự kiện cụm rỗng.</p>
+  <p>Trên ảnh làm việc <code>256×256</code> (<code>K = 4</code>), <code>KMeansFromScratch</code> giảm mạnh WCSS ngay trong 5 vòng lặp đầu và dừng ở vòng thứ <strong>26</strong> với lý do <code>converged</code> (độ dịch tâm cụm về <code>0,0</code>), không phát sinh sự kiện cụm rỗng.</p>
 
   <div class="table-wrap">
     <table>
@@ -538,7 +538,7 @@ footer {
     </table>
   </div>
 
-  <p>Đáng chú ý, giá trị WCSS cuối của cài đặt tự viết (<code>156.330.549,40</code>) gần như trùng khớp với WCSS của Scikit-Learn ở cùng <code>K = 4</code> (<code>156.334.928,00</code>, chênh lệch dưới 0,003%), xác nhận cài đặt thuần NumPy hội tụ về cùng vùng cực tiểu cục bộ ổn định.</p>
+  <p>Ở cùng K=4, scratch đạt WCSS khoảng <code>156.330.549,40</code>, còn Scikit-Learn đạt <code>156.334.928,00</code>, lệch dưới 0,003%. Hai phương án đạt giá trị mục tiêu gần nhau trong lần thử này. Chỉ từ WCSS chưa thể kết luận chúng có cùng nhãn, cùng tâm hoặc cùng nghiệm; muốn kiểm tra điều đó cần đối chiếu thêm các nhãn và tâm ở cùng K.</p>
 
   <figure>
     <img src="../../results/figures/kmeans_convergence.png" alt="Hình 6.1. Đường cong giảm WCSS và độ dịch chuyển tâm cụm của KMeansFromScratch.">
@@ -566,22 +566,22 @@ footer {
         </tr>
       </thead>
       <tbody>
-        <tr><td>2</td><td>334.192.736,0</td><td>10</td><td>0,1880</td><td>Gộp quá mạnh các vùng nóng/lạnh</td></tr>
-        <tr><td>3</td><td>232.992.992,0</td><td>6</td><td>0,2102</td><td></td></tr>
-        <tr><td>4</td><td>156.334.928,0</td><td>18</td><td>0,2989</td><td>Mốc baseline thực hành</td></tr>
-        <tr><td><b>5</b></td><td><b>121.024.704,0</b></td><td><b>7</b></td><td><b>0,3683</b></td><td><b>Điểm khuỷu tay do Kneedle chọn</b></td></tr>
-        <tr><td>6</td><td>104.840.664,0</td><td>10</td><td>0,5410</td><td></td></tr>
-        <tr><td>7</td><td>90.721.552,0</td><td>23</td><td>0,6460</td><td></td></tr>
-        <tr><td>8</td><td>78.616.960,0</td><td>51</td><td>0,7688</td><td></td></tr>
-        <tr><td>9</td><td>70.459.792,0</td><td>32</td><td>0,6439</td><td></td></tr>
-        <tr><td>10</td><td>64.329.860,0</td><td>37</td><td>0,7768</td><td></td></tr>
-        <tr><td>11</td><td>58.793.260,0</td><td>31</td><td>1,0022</td><td></td></tr>
-        <tr><td>12</td><td>54.090.324,0</td><td>37</td><td>0,8931</td><td>Giảm WCSS chậm dần, chia mảnh nhiều</td></tr>
+        <tr><td>2</td><td>334.192.768,0</td><td>10</td><td>0,1406</td><td>Gộp quá mạnh các vùng nóng/lạnh</td></tr>
+        <tr><td>3</td><td>232.993.008,0</td><td>6</td><td>0,1598</td><td></td></tr>
+        <tr><td>4</td><td>156.334.928,0</td><td>18</td><td>0,2124</td><td>Mốc baseline thực hành</td></tr>
+        <tr><td><b>5</b></td><td><b>121.024.704,0</b></td><td><b>7</b></td><td><b>0,2284</b></td><td><b>Điểm khuỷu tay do Kneedle chọn</b></td></tr>
+        <tr><td>6</td><td>104.840.664,0</td><td>10</td><td>0,2927</td><td></td></tr>
+        <tr><td>7</td><td>90.721.552,0</td><td>23</td><td>0,4043</td><td></td></tr>
+        <tr><td>8</td><td>78.616.968,0</td><td>51</td><td>0,4562</td><td></td></tr>
+        <tr><td>9</td><td>70.459.784,0</td><td>32</td><td>0,5276</td><td></td></tr>
+        <tr><td>10</td><td>64.329.860,0</td><td>37</td><td>0,5513</td><td></td></tr>
+        <tr><td>11</td><td>58.793.260,0</td><td>31</td><td>0,5687</td><td></td></tr>
+        <tr><td>12</td><td>54.090.324,0</td><td>37</td><td>0,6617</td><td>Giảm WCSS chậm dần, chia mảnh nhiều</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p>Từ <code>K = 2</code> xuống <code>K = 5</code>, WCSS giảm nhanh qua từng bước (giảm 213,17 triệu đơn vị), trong khi từ <code>K = 6</code> trở đi đường cong thoải rõ rệt và số vòng lặp hội tụ tăng lên 23–51 vòng. Với <code>K = 5</code>, mô hình đạt Silhouette Score <strong>0,4249</strong> (ước lượng trên 5.000 mẫu phân tầng).</p>
+  <p>Khi tăng từ K=2 lên K=5, WCSS giảm khoảng 213,17 triệu đơn vị. Sau K=5, mức giảm qua mỗi bước nhỏ dần nên K=5 được dùng làm lựa chọn tham khảo cho ảnh này. K=6 chạy 10 vòng; từ K=7 đến K=12, số vòng nằm trong khoảng 23–51. Số vòng lặp không phải thước đo chất lượng ảnh. Với K=5, Silhouette trên 5.000 mẫu RGB là <strong>0,4179</strong>.</p>
 
   <figure>
     <img src="../../results/figures/elbow_method.png" alt="Hình 6.3. Biểu đồ Elbow Method xác định K=5.">
@@ -596,7 +596,7 @@ footer {
 
 <section id="sec-7">
   <h2>7. Phân đoạn độ phân giải gốc và bảng màu</h2>
-  <p>Sau khi chọn <code>K = 5</code> trên ảnh làm việc, Bước 5 dự đoán nhãn trực tiếp cho toàn bộ <strong>10.653.696 pixel</strong> của ảnh gốc <code>3264×3264</code> theo từng lô <code>250.000</code> pixel để giữ bộ nhớ ổn định mà không làm mất độ sắc nét cạnh như cách phóng đại Nearest Neighbor. Riêng ảnh ranh giới <code>cluster_boundaries.png</code> được trích xuất trên lưới nhãn làm việc <code>256×256</code> bằng phép giãn/co hình thái học 3×3 nhằm quan sát đường biên phân chia vùng màu tổng thể.</p>
+  <p>Sau khi chọn <code>K = 5</code> trên ảnh làm việc, Bước 5 dự đoán nhãn trực tiếp cho toàn bộ <strong>10.653.696 pixel</strong> của ảnh gốc <code>3264×3264</code> theo từng lô <code>250.000</code> pixel để giữ bộ nhớ ổn định thay vì phóng lớn nhãn của ảnh làm việc bằng Nearest Neighbor; cách này dùng màu từng pixel gốc nhưng vẫn có thể làm mất chi tiết do lượng tử hóa màu. Riêng ảnh ranh giới <code>cluster_boundaries.png</code> được trích xuất trên lưới nhãn làm việc <code>256×256</code> bằng phép giãn/co hình thái học 3×3 nhằm quan sát đường biên phân chia vùng màu tổng thể.</p>
 
   <div class="table-wrap">
     <table>
@@ -664,7 +664,7 @@ footer {
   <h2>8. Kiểm định chéo và các đánh đổi nâng cao</h2>
 
   <h3>8.1. Đối chiếu Scikit-Learn với OpenCV (<code>cv2.kmeans</code>)</h3>
-  <p>Tại <code>K = 5</code>, thuật toán của Scikit-Learn và OpenCV (<code>opencv_comparison.json</code>) cho kết quả gần như đồng nhất về mặt toán học: Compactness của OpenCV là <code>121.043.674,52</code> so với Inertia <code>121.024.704,0</code> của Scikit-Learn (sai khác tương đối chỉ <strong>0,0157%</strong>). Sau khi ánh xạ chỉ số cụm bằng thuật toán Hungarian (<code>{0: 0, 1: 4, 2: 3, 3: 1, 4: 2}</code>), hai mô hình trùng khớp nhãn trên <strong>99,36%</strong> điểm ảnh (<code>ARI = 0,9834</code>, <code>NMI = 0,9743</code>). Về hiệu năng, OpenCV hoàn tất trong <strong>0,0942 giây</strong>, nhanh gấp <strong>2,85 lần</strong> so với <strong>0,2684 giây</strong> của Scikit-Learn trên cùng ma trận.</p>
+  <p>Tại K=5, OpenCV đạt WCSS <code>121.043.674,52</code>, còn Scikit-Learn đạt <code>121.024.704,0</code>, lệch 0,0157%. Sau khi ghép tên cụm bằng Hungarian, 99,36% pixel có nhãn tương ứng; ARI là 0,9834 và NMI là 0,9743. Các số này cho thấy hai phân hoạch gần nhau trong lần thử, không phải độ chính xác so với vật thể thật. Thời gian ghi nhận là <strong>0,0913 giây</strong> cho OpenCV và <strong>0,3066 giây</strong> cho Scikit-Learn, tương ứng <strong>3,36 lần</strong>.</p>
 
   <h3>8.2. Đánh đổi tốc độ và sai số với Mini-Batch K-Means</h3>
   <p>Mini-Batch K-Means cập nhật tâm cụm bằng từng lô ngẫu nhiên thay vì duyệt toàn bộ $N$ điểm ở mỗi bước. Thực nghiệm trên <code>N = 65.536</code> điểm ảnh (<code>K = 5</code>, <code>n_init = 10</code>) ghi nhận rõ hai vùng hành vi khác nhau:</p>
@@ -685,17 +685,18 @@ footer {
         </tr>
       </thead>
       <tbody>
-        <tr><td>Full KMeans</td><td>65.536</td><td>0,3304</td><td>1,00x</td><td>121.024.704,0</td><td>+0,00%</td><td>1,0000</td><td>1,0000</td></tr>
-        <tr><td>MiniBatch (b=256)</td><td>256</td><td>0,7225</td><td>0,46x</td><td>121.054.752,0</td><td>+0,02%</td><td>0,9938</td><td>0,9869</td></tr>
-        <tr><td>MiniBatch (b=512)</td><td>512</td><td>0,6831</td><td>0,48x</td><td>121.602.440,0</td><td>+0,48%</td><td>0,9300</td><td>0,9148</td></tr>
-        <tr><td>MiniBatch (b=1024)</td><td>1.024</td><td>0,5978</td><td>0,55x</td><td>121.342.200,0</td><td>+0,26%</td><td>0,9100</td><td>0,9089</td></tr>
-        <tr><td>MiniBatch (b=2048)</td><td>2.048</td><td>0,1524</td><td>2,17x</td><td>121.410.992,0</td><td>+0,32%</td><td>0,9085</td><td>0,9093</td></tr>
-        <tr><td>MiniBatch (b=4096)</td><td>4.096</td><td>0,1397</td><td>2,37x</td><td>121.542.400,0</td><td>+0,43%</td><td>0,8821</td><td>0,8866</td></tr>
+        <tr><td>Full KMeans</td><td>65.536</td><td>0,2631</td><td>1,00x</td><td>121.024.704,0</td><td>+0,00%</td><td>1,0000</td><td>1,0000</td></tr>
+        <tr><td>MiniBatch (b=256)</td><td>256</td><td>0,5086</td><td>0,52x</td><td>121.054.752,0</td><td>+0,02%</td><td>0,9938</td><td>0,9869</td></tr>
+        <tr><td>MiniBatch (b=512)</td><td>512</td><td>0,4019</td><td>0,65x</td><td>121.602.440,0</td><td>+0,48%</td><td>0,9300</td><td>0,9148</td></tr>
+        <tr><td>MiniBatch (b=1024)</td><td>1.024</td><td>0,3558</td><td>0,74x</td><td>121.342.200,0</td><td>+0,26%</td><td>0,9100</td><td>0,9089</td></tr>
+        <tr><td>MiniBatch (b=2048)</td><td>2.048</td><td>0,0996</td><td>2,64x</td><td>121.410.992,0</td><td>+0,32%</td><td>0,9085</td><td>0,9093</td></tr>
+        <tr><td>MiniBatch (b=4096)</td><td>4.096</td><td>0,0850</td><td>3,09x</td><td>121.542.400,0</td><td>+0,43%</td><td>0,8821</td><td>0,8866</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p>Kết quả cho thấy Mini-Batch không mặc nhiên nhanh hơn ở mọi kích thước lô: khi <code>N = 65.536</code> còn khá nhỏ, các batch từ <code>256</code> đến <code>1.024</code> thực tế lại <em>chậm hơn</em> Full KMeans (<code>0,46x–0,55x</code>) vì chi phí lặp khởi tạo <code>n_init = 10</code> và lấy mẫu Python/BLAS lặp lại nhiều lần lấn át lợi thế tính khoảng cách. Từ ngưỡng <code>batch_size &ge; 2.048</code>, Mini-Batch mới vượt tốc rõ rệt (<code>2,17x–2,37x</code>), trong khi mức tăng WCSS trên toàn bộ các cấu hình đều giữ dưới <code>0,5%</code>.</p>
+  <p>Trong lần đo này, các batch 256–1.024 chậm hơn Full K-Means, với hệ số tốc độ 0,52–0,74. Batch 2.048 và 4.096 nhanh hơn, lần lượt 2,64 và 3,09 lần; mức tăng WCSS đều dưới 0,5%. Điều đó cho thấy Mini-Batch không luôn nhanh hơn khi ảnh đã được thu nhỏ. Chưa có đo đạc chi tiết để xác định nguyên nhân chậm, và chưa thể coi 2.048 là ngưỡng chung cho ảnh khác. Ở bảng này, batch đề nghị bằng batch thực dùng vì đều nhỏ hơn N. Với ảnh ít pixel hơn, chương trình giới hạn batch về N và ghi riêng giá trị thực dùng.</p>
+  <p>Thời gian chỉ tính phần phân cụm, không gồm đọc ảnh hoặc vẽ biểu đồ. Mốc Full K-Means được chạy lại cho bảng Mini-Batch nên không cần bằng thời gian ở bảng Elbow hay phép đối chiếu OpenCV. Bộ kết quả hiện có chưa lưu đầy đủ CPU, RAM, phiên bản thư viện, số thread và các lần đo lặp. Vì vậy, các hệ số tốc độ ở đây chỉ mô tả lần đo đã lưu, chưa phải kết luận hiệu năng chung.</p>
 
   <figure>
     <img src="../../results/figures/minibatch_visual_comparison.png" alt="Hình 8.1. So sánh trực quan giữa Full KMeans và MiniBatchKMeans ở batch 256, 1024, 4096.">
@@ -719,27 +720,27 @@ footer {
       <tbody>
         <tr>
           <td><b>RGB</b></td>
-          <td>0,4249</td>
-          <td>0,2684</td>
+          <td>0,4179</td>
+          <td>0,3066</td>
           <td>Baseline trực tiếp theo đề bài; khoảng cách L2 chưa tương ứng tuyến tính với cảm nhận mắt người.</td>
         </tr>
         <tr>
           <td><b>HSV</b></td>
-          <td>0,4172</td>
-          <td>0,3240</td>
-          <td>Điểm thấp nhất trong 3 hệ màu vì trục Hue mang tính tuần hoàn góc ($0 \equiv 180$ trên OpenCV uint8) nhưng Euclidean xử lý như trục thẳng, dễ chia tách sai dải đỏ/cam hoặc gộp nhầm vùng bão hòa thấp.</td>
+          <td>0,4169</td>
+          <td>0,2674</td>
+          <td>Điểm thấp hơn nhẹ so với RGB trong lần thử. Hue có tính tuần hoàn nhưng khoảng cách Euclidean xử lý như trục thẳng; đây là một hạn chế có thể ảnh hưởng, chưa được tách riêng để đo trong bài.</td>
         </tr>
         <tr>
           <td><b>CIE LAB</b></td>
-          <td><b>0,4552</b></td>
-          <td>0,2985</td>
-          <td>Đạt Silhouette cao nhất; cấu trúc tách độ sáng $L^*$ và hai kênh sắc độ $a^*, b^*$ xấp xỉ tốt hơn cảm nhận chênh lệch màu của thị giác người.</td>
+          <td>0,4532</td>
+          <td>0,2562</td>
+          <td>Silhouette cao nhất trong lần thử này, tính trên tọa độ LAB dạng uint8 của OpenCV. Điều đó chưa đủ để kết luận ảnh phân đoạn đúng hơn về vật thể hoặc cảm nhận màu.</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <div class="note"><b>Lưu ý khi so sánh chỉ số Silhouette giữa các hệ màu:</b> Silhouette của mỗi hệ màu được tính trên tọa độ không gian màu riêng của chính nó (RGB trên thang <code>[0..255]</code>, HSV có Hue trong <code>[0..179]</code>, LAB theo <code>[0..255]</code> OpenCV). Con số <code>0,4552</code> phản ánh độ tách cụm hình học trong hệ tọa độ CIE LAB thuận lợi hơn, nhưng không thay thế cho đánh giá định tính hay bài toán phân vùng đối tượng có ground-truth.</div>
+  <div class="note"><b>Cách đọc bảng:</b> Mỗi điểm Silhouette được tính trong hệ tọa độ riêng: RGB, HSV hoặc LAB dạng uint8 của OpenCV. Do khoảng cách và tỷ trọng các kênh khác nhau, không nên lấy điểm cao nhất để kết luận hệ màu đó luôn tốt nhất. Cần xem thêm ảnh phân đoạn. Trong bài lab này, chưa có mặt nạ chuẩn để đo độ đúng của từng vùng vật thể.</div>
 
   <figure>
     <img src="../../results/figures/color_space_segmentation_comparison.png" alt="Hình 8.2. So sánh ảnh phân đoạn khi huấn luyện trên RGB, HSV và CIE LAB.">
@@ -786,7 +787,7 @@ footer {
 
 <section id="sec-10">
   <h2>10. Kiểm thử, CLI và bộ notebook thực hành</h2>
-  <p>Bộ kiểm thử trong <code>tests/</code> gồm 4 tệp (<code>test_data.py</code>, <code>test_models.py</code>, <code>test_segmentation.py</code>, <code>test_evaluation.py</code>) kiểm tra các hợp đồng dữ liệu: chuyển đổi khứ hồi BGR/RGB/HSV/LAB, xử lý ảnh RGBA, quy tắc hòa khoảng cách và phục hồi cụm rỗng của <code>KMeansFromScratch</code>, tính bất biến nhãn của <code>OpenCVKMeansTrainer</code>, kiểm tra chống chồng chữ trên biểu đồ Matplotlib và kiểm tra AST bắt buộc docstring Tiếng Việt trong các module trọng yếu. Lần chạy xác minh gần nhất trên môi trường ảo <code>.venv</code> (Python 3.12) ghi nhận <strong>28 tests đạt</strong> trong <strong>4,019 giây</strong> (<code>Ran 28 tests in 4.019s OK</code>).</p>
+  <p>Bộ kiểm thử hiện có 5 tệp: <code>test_data.py</code>, <code>test_models.py</code>, <code>test_segmentation.py</code>, <code>test_evaluation.py</code> và <code>test_pipeline_regressions.py</code>. Lần xác minh trong phiên làm việc ngày 17/11/2026 đạt <strong>39/39 tests</strong>. Các kiểm tra bao gồm chuẩn bị dữ liệu, tái tạo ảnh, nhãn–tâm–WCSS, ảnh một màu và một pixel, lấy mẫu Silhouette, cấu hình Mini-Batch, lưu/nạp model và một số bố cục biểu đồ. Test đạt cho thấy các tình huống đã kiểm tra hoạt động đúng, không chứng minh chương trình đúng với mọi ảnh.</p>
 
   <h3>Các lệnh chạy từ thư mục gốc dự án</h3>
 <pre><code># Chạy toàn bộ bộ kiểm thử đơn vị và quy ước
@@ -802,7 +803,7 @@ footer {
 .\.venv\Scripts\python.exe main.py --target-size 256 --skip-color-space-benchmark</code></pre>
 
   <h3>Bộ 4 notebook tự chứa kết quả</h3>
-  <p>Thư mục <code>notebooks/</code> gồm 4 notebook đánh số <code>01</code> đến <code>04</code> tương ứng các giai đoạn của pipeline. Tất cả biểu đồ PNG và bảng <code>DataFrame</code> HTML được nhúng trực tiếp vào MIME output bên trong từng file <code>.ipynb</code> (tổng dung lượng 4 file ~9,46 MB), sử dụng thư mục tạm cho bước thử nghiệm suy luận để không sửa đổi hay ghi đè thư mục <code>results/</code> của <code>main.py</code>.</p>
+  <p>Bốn notebook 01–04 minh họa các giai đoạn của bài lab và dùng lại các module chung. Ảnh và bảng được nhúng trong từng notebook; thử nghiệm suy luận dùng thư mục tạm. Một số ô đã được cập nhật theo logic mới nhưng output nhúng chưa được chạy lại trong lượt chỉnh báo cáo này. Vì vậy, số liệu của báo cáo được đối chiếu theo JSON/CSV trong <code>results/</code>, không lấy output notebook làm bằng chứng cho lần chạy hiện tại.</p>
 </section>
 
 <section id="sec-11">
@@ -813,13 +814,13 @@ footer {
     <li><b>Giả định cụm cầu của khoảng cách Euclidean:</b> K-Means tách tốt các mảng màu đậm và cách biệt nhau, nhưng dễ chia cắt chưa tự nhiên tại vùng chuyển sắc (gradient) liên tục hoặc bị chi phối bởi biến thiên độ sáng trong RGB.</li>
     <li><b>Không sử dụng dữ liệu nhãn phân vùng chuẩn:</b> Vì đây là bài toán không giám sát và tập ảnh không có mặt nạ ground-truth, việc đánh giá chỉ dừng ở WCSS, Silhouette trên mẫu 5.000 điểm ảnh và quan sát trực quan, chưa đo được IoU hay Dice đối với vật thể thực tế.</li>
     <li><b>Phụ thuộc điểm chọn Elbow hình học:</b> Kneedle chọn <code>K = 5</code> dựa trên độ cong của đường WCSS, mang tính tham khảo định lượng chứ không bảo đảm đây là số vùng màu tối ưu cho mọi mục đích thẩm mỹ hay tách nền.</li>
-    <li><b>Phạm vi suy luận chéo:</b> Như đã chứng minh ở Mục 9, bộ tâm cụm học trên một ảnh đơn lẻ không mang tính tổng quát hóa sang ảnh mới có phân bố màu khác; ứng dụng phân đoạn ảnh thực tế cần fit trực tiếp trên từng ảnh hoặc chuyển sang mô hình phân đoạn ngữ nghĩa có giám sát (như U-Net / Mask R-CNN).</li>
+    <li><b>Phạm vi suy luận chéo:</b> Thử nghiệm ở Mục 9 cho thấy ảnh biển bị đưa về bảng màu đã học từ ảnh chất lỏng. Nếu muốn tìm các màu đại diện riêng của ảnh biển, cần phân cụm lại ảnh biển. Bài lab chưa thực hiện phân vùng ngữ nghĩa hay nhận diện vật thể.</li>
   </ul>
 </section>
 
 <section id="sec-12">
   <h2>12. Các tệp dùng để đối chiếu</h2>
-  <p>Mọi chi tiết cài đặt và con số trong báo cáo này có thể kiểm chứng trực tiếp từ các tệp nguồn và kết quả sau:</p>
+  <p>Các bảng số liệu được đối chiếu với bộ JSON/CSV đang lưu khi chỉnh báo cáo ngày 17/11/2026. Các đường dẫn dưới đây giúp tra lại cách xử lý và số liệu. Bộ kết quả chưa có mã lần chạy và bản ghi môi trường đầy đủ, nên không khẳng định đây là một bộ đo đã được kiểm soát hoàn toàn.</p>
   <div class="table-wrap">
     <table>
       <caption>Bảng 12.1. Danh mục mã nguồn, dữ liệu đo đạc và notebook đối chiếu</caption>
@@ -851,13 +852,13 @@ footer {
         <tr><td><a href="../../results/metrics/color_space_comparison.json"><code>results/metrics/color_space_comparison.json</code></a></td><td>Đối chiếu Silhouette Score và thời gian fit giữa RGB, HSV và CIE LAB.</td></tr>
         <tr><td><a href="../../results/figures/inference_preview/image-sea_stats_k5.json"><code>results/figures/inference_preview/image-sea_stats_k5.json</code></a></td><td>Thống kê phân bố cụm khi suy luận chéo lên ảnh <code>image-sea.png</code>.</td></tr>
         <tr><td><a href="../../notebooks/"><code>notebooks/01..04.ipynb</code></a></td><td>Bốn notebook thực hành tuần tự, nhúng ảnh PNG và bảng HTML độc lập.</td></tr>
-        <tr><td><a href="../../tests/"><code>tests/</code></a></td><td>Bộ kiểm thử đơn vị và kiểm tra quy ước (28 tests).</td></tr>
+        <tr><td><a href="../../tests/"><code>tests/</code></a></td><td>Bộ kiểm thử đơn vị và kiểm tra quy ước (39 tests).</td></tr>
       </tbody>
     </table>
   </div>
 
   <footer>
-    <p>Báo cáo bài lab Học máy — tổng hợp ngày 12/11/2026 từ mã nguồn và bộ kết quả thực nghiệm của <code>main.py</code> trên ảnh <code>image-liquid.jpg</code> (<code>seed = 42</code>). Số liệu giữ nguyên theo các tệp JSON/CSV trong <code>results/metrics/</code> và kết quả kiểm thử cùng ngày.</p>
+    <p>Báo cáo bài lab Học máy — chỉnh nội dung ngày 17/11/2026, đối chiếu bộ kết quả hiện có trên ảnh <code>image-liquid.jpg</code>, seed 42. Lượt chỉnh này không huấn luyện lại hoặc thay thế các ảnh kết quả. Thời gian thực nghiệm thuộc các lần đo đã lưu; phần kiểm thử ghi nhận riêng lần xác minh 39/39 tests.</p>
   </footer>
 </section>
 </div></body>
