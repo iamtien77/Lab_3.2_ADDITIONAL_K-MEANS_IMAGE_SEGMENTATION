@@ -146,7 +146,7 @@ def step_2_preprocess_and_flatten(
     resized_shape = prep_bundle["resized_shape"]
     pixel_matrix = prep_bundle["pixel_matrix"]
 
-    color_stats = compute_color_statistics(pixel_matrix)
+    color_stats = compute_color_statistics(resized_rgb)
     stats_path = METRICS_DIR / "data_quality_stats.json"
     stats_path.write_text(
         json.dumps(color_stats, indent=2, ensure_ascii=False),
@@ -156,7 +156,7 @@ def step_2_preprocess_and_flatten(
     print(
         f"Kích thước sau resize: {resized_shape[1]}x{resized_shape[0]} | "
         f"Ma trận pixel ({norm_space}): {pixel_matrix.shape} ({pixel_matrix.dtype}) | "
-        f"Số màu phân biệt: {color_stats['unique_colors']:,}"
+        f"Số màu RGB phân biệt: {color_stats['unique_colors']:,}"
     )
     logger.info("Hoàn tất Bước 2: Đã tiền xử lý, làm phẳng ma trận pixel và lưu thống kê chất lượng.")
     return resized_rgb, resized_shape, pixel_matrix
@@ -173,12 +173,13 @@ def step_3_kmeans_from_scratch(
     - Trích xuất bảng lịch sử hội tụ và xuất biểu đồ vào results/figures/kmeans_convergence.png.
     - Nếu có ảnh làm việc resized_rgb, xuất thêm ảnh phân đoạn đối chiếu trực tiếp của KMeansFromScratch.
     """
+    baseline_k = min(BASELINE_K, len(np.unique(pixel_matrix, axis=0)))
     print_section(
         "BƯỚC 3: THUẬT TOÁN K-MEANS TỪ ĐẦU (PURE NUMPY BASELINE - TASK 3)",
-        f"Tham số: K={BASELINE_K}, max_iter={MAX_ITER}, tol={TOLERANCE}, seed={RANDOM_SEED}, hệ màu={color_space}",
+        f"Tham số: K={baseline_k}, max_iter={MAX_ITER}, tol={TOLERANCE}, seed={RANDOM_SEED}, hệ màu={color_space}",
     )
     scratch_model = KMeansFromScratch(
-        n_clusters=BASELINE_K,
+        n_clusters=baseline_k,
         max_iter=MAX_ITER,
         tol=TOLERANCE,
         random_state=RANDOM_SEED,
@@ -200,8 +201,8 @@ def step_3_kmeans_from_scratch(
         plot_side_by_side(
             resized_rgb,
             scratch_seg,
-            k=BASELINE_K,
-            title=f"K-Means From Scratch Baseline ({color_space}, K={BASELINE_K})",
+            k=baseline_k,
+            title=f"K-Means From Scratch Baseline ({color_space}, K={baseline_k})",
             save_path=FIGURES_DIR / "scratch_baseline_side_by_side.png",
         )
 
@@ -231,7 +232,11 @@ def step_4_elbow_method_optimal_k(
         + (f" | K chỉ định = {fixed_k}" if fixed_k is not None else ""),
     )
     trainer = SklearnKMeansTrainer(random_state=RANDOM_SEED)
-    df_elbow, elbow_k = trainer.search_elbow(pixel_matrix, k_range=K_SEARCH_RANGE)
+    n_unique = len(np.unique(pixel_matrix, axis=0))
+    if fixed_k is not None and not 1 <= fixed_k <= n_unique:
+        raise ValueError(f"K must lie in [1, {n_unique}] for the working image, got {fixed_k}.")
+    search_range = range(1, 2) if n_unique == 1 else K_SEARCH_RANGE
+    df_elbow, elbow_k = trainer.search_elbow(pixel_matrix, k_range=search_range)
     selected_k = int(fixed_k) if fixed_k is not None else int(elbow_k)
     if fixed_k is not None and selected_k != elbow_k:
         logger.info(
@@ -253,7 +258,7 @@ def step_4_elbow_method_optimal_k(
     # Nếu có kích thước resize, xuất thêm lưới trực quan hóa ảnh phân đoạn theo K tăng dần
     if resized_shape is not None:
         segmenter = ImageSegmenter()
-        k_candidates = sorted({2, 3, 4, selected_k, 6, 8})
+        k_candidates = sorted(k for k in {2, 3, 4, selected_k, 6, 8} if k <= n_unique)
         k_images: Dict[int, np.ndarray] = {}
         for k_val in k_candidates:
             preview_model = (
@@ -563,7 +568,7 @@ def step_7_advanced_benchmarks_and_save(
             )
             visual_panels.append(
                 {
-                    "label": f"MiniBatch (b={preview_bs})",
+                    "label": str(row["model"]),
                     "image": segmenter.reconstruct_segmented_image(
                         mb_labels, mb_rgb_centers, target_shape=resized_shape
                     ),
