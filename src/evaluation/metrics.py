@@ -18,7 +18,6 @@ from sklearn.metrics import (
     normalized_mutual_info_score,
     silhouette_score,
 )
-from sklearn.model_selection import StratifiedShuffleSplit
 
 from src.config import RANDOM_SEED
 from src.utils.logger import get_logger
@@ -76,33 +75,44 @@ def compute_silhouette(
         random_state: Seed cố định khi lấy mẫu ngẫu nhiên phân tầng.
 
     Trả về:
-        Hệ số Silhouette Score nằm trong [-1.0, 1.0] (trả về 0.0 nếu chỉ có 1 cụm).
+        Hệ số Silhouette Score nằm trong [-1.0, 1.0]. Khi không đủ cụm hoặc
+        mẫu để tính, ghi cảnh báo và trả về 0.0 theo quy ước của bài lab;
+        giá trị quy ước này không phải điểm đo chất lượng.
     """
     X_arr = np.asarray(X, dtype=np.float32)
     lbl_arr = np.asarray(labels, dtype=np.int64).reshape(-1)
-    if X_arr.ndim != 2 or X_arr.shape[0] != lbl_arr.size or X_arr.shape[0] < 2:
+    if X_arr.ndim != 2 or X_arr.shape[0] != lbl_arr.size or X_arr.shape[0] == 0:
         raise ValueError("Invalid inputs for silhouette score computation.")
+    if not np.isfinite(X_arr).all():
+        raise ValueError("X must contain finite values.")
+    if not isinstance(max_samples, (int, np.integer)) or max_samples < 1:
+        raise ValueError("max_samples must be a positive integer.")
 
     unique_labels, counts = np.unique(lbl_arr, return_counts=True)
-    if len(unique_labels) < 2 or len(unique_labels) >= X_arr.shape[0]:
+    sample_size = min(int(max_samples), X_arr.shape[0])
+    if len(unique_labels) < 2 or len(unique_labels) >= sample_size:
         logger.warning(
-            f"Không thể tính Silhouette Score hợp lệ với {len(unique_labels)} cụm trên {X_arr.shape[0]} mẫu, trả về 0.0."
+            f"Không thể tính Silhouette Score hợp lệ với {len(unique_labels)} cụm trên {sample_size} mẫu; "
+            "trả về 0.0 theo quy ước, không phải điểm đánh giá chất lượng."
         )
         return 0.0
 
-    # Lấy mẫu phân tầng nếu N > max_samples và mỗi cụm có tối thiểu 2 phần tử để split an toàn
-    if X_arr.shape[0] > max_samples:
-        if np.all(counts >= 2) and max_samples >= len(unique_labels):
-            splitter = StratifiedShuffleSplit(
-                n_splits=1,
-                train_size=int(max_samples),
-                random_state=int(random_state),
-            )
-            sample_idx, _ = next(splitter.split(X_arr, lbl_arr))
-        else:
-            rng = np.random.default_rng(int(random_state))
-            sample_idx = rng.choice(X_arr.shape[0], size=int(max_samples), replace=False)
-
+    # Phân bổ gần tỷ lệ gốc nhưng giữ ít nhất một điểm mỗi cụm, kể cả cụm hiếm.
+    # Không tạo tập test phụ: phần dữ liệu bỏ lại không cần chứa đủ các cụm.
+    if X_arr.shape[0] > sample_size:
+        quotas = counts * (sample_size / float(X_arr.shape[0]))
+        allocation = np.maximum(1, np.floor(quotas).astype(int))
+        while allocation.sum() > sample_size:
+            surplus = np.where(allocation > 1, allocation - quotas, -np.inf)
+            allocation[int(np.argmax(surplus))] -= 1
+        while allocation.sum() < sample_size:
+            deficit = np.where(allocation < counts, quotas - allocation, -np.inf)
+            allocation[int(np.argmax(deficit))] += 1
+        rng = np.random.default_rng(int(random_state))
+        sample_idx = np.concatenate([
+            rng.choice(np.flatnonzero(lbl_arr == label), size=int(size), replace=False)
+            for label, size in zip(unique_labels, allocation)
+        ])
         X_eval = X_arr[sample_idx]
         lbl_eval = lbl_arr[sample_idx]
     else:

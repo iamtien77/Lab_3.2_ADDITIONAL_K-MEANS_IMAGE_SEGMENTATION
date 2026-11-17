@@ -76,9 +76,11 @@ class OpenCVKMeansTrainer:
             int(max_iter),
             float(epsilon),
         )
+        # OpenCV hiểu (1, D) là D mẫu một chiều; thêm trục để giữ một mẫu có D đặc trưng.
+        cv_data = data.reshape(1, 1, data.shape[1]) if data.shape[0] == 1 else data
         t0 = time.perf_counter()
         compactness, labels, centers = cv2.kmeans(
-            data,
+            cv_data,
             int(k),
             None,
             criteria,

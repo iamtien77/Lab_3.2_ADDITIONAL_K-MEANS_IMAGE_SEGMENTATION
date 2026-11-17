@@ -247,10 +247,10 @@ class KMeansFromScratch:
                 self.stop_reason_ = "converged"
                 break
 
-        # Gán lại nhãn một lần cuối theo bộ tâm cuối để bảo đảm đồng bộ tuyệt đối với inertia_
-        final_labels, final_inertia = self._assign_clusters(X_arr, centroids)
+        # Gán nhãn theo đúng tâm sẽ lưu để sai số đổi dtype không làm lệch nhãn tại ranh giới cụm.
         self.centroids = centroids.astype(np.float32)
         self.cluster_centers_ = self.centroids
+        final_labels, final_inertia = self._assign_clusters(X_arr, self.centroids)
         self.labels_ = final_labels
         self.inertia_ = float(final_inertia)
 

@@ -56,6 +56,7 @@ class MiniBatchKMeansTrainer:
 
         Trả về:
             DataFrame tổng hợp so sánh Full KMeans và từng cấu hình MiniBatchKMeans.
+            Cột batch_size giữ giá trị yêu cầu; effective_batch_size là kích thước thực dùng.
         """
         X_arr = np.asarray(X, dtype=np.float32)
         if X_arr.ndim != 2 or X_arr.shape[0] < k:
@@ -68,7 +69,7 @@ class MiniBatchKMeansTrainer:
         timed_full = KMeans(
             n_clusters=int(k),
             init=getattr(full_kmeans_model, "init", "k-means++"),
-            n_init=int(getattr(full_kmeans_model, "n_init", N_INIT)),
+            n_init=getattr(full_kmeans_model, "n_init", N_INIT),
             max_iter=int(getattr(full_kmeans_model, "max_iter", MAX_ITER)),
             tol=float(getattr(full_kmeans_model, "tol", 1e-4)),
             random_state=getattr(full_kmeans_model, "random_state", self.random_state),
@@ -83,6 +84,7 @@ class MiniBatchKMeansTrainer:
             {
                 "model": "Full KMeans",
                 "batch_size": int(X_arr.shape[0]),
+                "effective_batch_size": int(X_arr.shape[0]),
                 "fit_time_sec": round(float(full_time), 4),
                 "speedup": 1.0,
                 "inertia": round(baseline_inertia, 2),
@@ -99,6 +101,11 @@ class MiniBatchKMeansTrainer:
 
         for bs in batch_sizes:
             effective_bs = min(int(bs), X_arr.shape[0])
+            batch_label = (
+                f"b={effective_bs}, requested={int(bs)}"
+                if effective_bs != int(bs)
+                else f"b={effective_bs}"
+            )
             t0 = time.perf_counter()
             mb_model = MiniBatchKMeans(
                 n_clusters=int(k),
@@ -124,8 +131,9 @@ class MiniBatchKMeansTrainer:
 
             rows.append(
                 {
-                    "model": f"MiniBatch (b={bs})",
+                    "model": f"MiniBatch ({batch_label})",
                     "batch_size": int(bs),
+                    "effective_batch_size": int(effective_bs),
                     "fit_time_sec": round(float(mb_time), 4),
                     "speedup": speedup,
                     "inertia": round(mb_inertia, 2),
@@ -135,7 +143,7 @@ class MiniBatchKMeansTrainer:
                 }
             )
             logger.info(
-                f"  -> batch={bs:4d} | thời gian={mb_time:.4f}s (x{speedup}) | "
+                f"  -> batch thực dùng={effective_bs}, yêu cầu={int(bs)} | thời gian={mb_time:.4f}s (x{speedup}) | "
                 f"tăng WCSS={inertia_inc_pct:+.2f}% | ARI={ari} | NMI={nmi}"
             )
 
