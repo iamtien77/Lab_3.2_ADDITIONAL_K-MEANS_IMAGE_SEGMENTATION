@@ -4,135 +4,106 @@
 
 ## 1. Mục đích
 
-- Triển khai yêu cầu **Bước 3: Apply K-Means Clustering** trong đề bài bằng hàm chuyên dụng `cv2.kmeans` tích hợp sẵn trong thư viện thị giác máy tính OpenCV.
-- Phục vụ so sánh và kiểm tra chéo cho bài lab:
-  - Đo thời gian thực thi của hàm viết bằng C++ trong OpenCV so với các cách khác.
-  - So sánh độ tương đồng về kết quả giữa OpenCV và Scikit-Learn: tỷ lệ trùng khớp nhãn pixel (Label Agreement %) và độ chênh lệch quán tính (Inertia vs Compactness).
-  - Giúp nhóm hiểu cách một thư viện xử lý ảnh thực hiện thuật toán K-Means trực tiếp trên ma trận pixel.
+Dùng K-Means của OpenCV làm phương án đối chiếu bổ sung cho bài lab. Nhóm sẽ so sánh WCSS, mức tương đồng nhãn và thời gian với Scikit-Learn trên cùng dữ liệu, qua đó tìm hiểu ảnh hưởng của cách khởi tạo và điều kiện dừng.
+
+Đây là phần khảo sát sau baseline, không phải điều kiện bắt buộc để hoàn thành năm bước của đề. Không đặt trước thư viện nào nhanh hơn hoặc cho phân hoạch tốt hơn.
 
 ---
 
 ## 2. Trạng thái thiết kế (Status)
 
-- **Trạng thái:** `Bản thiết kế ban đầu (Pending Implementation)`
-- **Tiến độ code:** Đã có khung lớp `OpenCVKMeansTrainer` trong `src/models/kmeans_opencv.py`, các hàm còn để trống (`pass`), chưa thực hiện kiểm tra chéo thực tế.
+Tài liệu nêu phương án đối chiếu dự kiến, dữ liệu cần bàn giao và cách diễn giải các phép đo. Các lựa chọn ban đầu sẽ được xem xét trong phạm vi một số ảnh của bài lab.
 
 ---
 
 ## 3. Dữ liệu sử dụng (Data used)
 
-- **Dữ liệu:** Ma trận điểm ảnh `(N, 3)` từ bước tiền xử lý ảnh.
-- **Yêu cầu riêng của OpenCV:**
-  - OpenCV bắt buộc dữ liệu đầu vào của hàm `cv2.kmeans` phải có kiểu số thực `np.float32` liên tục trong bộ nhớ.
-  - Thang giá trị màu vẫn giữ nguyên đoạn `[0.0, 255.0]`.
+Dùng ma trận điểm ảnh RGB $(N,3)$ từ cùng ảnh đã resize như các phương án còn lại. Dữ liệu cần có giá trị hữu hạn trên thang $[0,255]$, biểu diễn bằng số thực độ chính xác đơn phù hợp với OpenCV.
+
+Giữ nguyên thứ tự pixel, hệ màu và thang đo giữa hai phương án. K không vượt số màu phân biệt của ảnh làm việc.
 
 ---
 
 ## 4. Đầu vào (Input)
 
-Hàm huấn luyện của OpenCV cần các tham số:
+| Thành phần | Ý nghĩa | Lựa chọn ban đầu |
+| --- | --- | --- |
+| Ma trận điểm ảnh | Dữ liệu RGB $(N,3)$ | Ảnh sau resize |
+| Số cụm K | Dùng cùng K với phương án đối chiếu | K hợp lệ đã chọn, kể cả K=1 |
+| Số lần khởi tạo | Chọn lần có WCSS nhỏ nhất | 10 lần |
+| Giới hạn vòng lặp | Giới hạn cho mỗi lần chạy | 300 vòng |
+| Ngưỡng hội tụ | Ngưỡng dịch chuyển tâm theo quy ước OpenCV | $10^{-4}$ trên thang RGB $[0,255]$ |
+| Seed | Hỗ trợ kiểm tra lặp lại trong cùng môi trường | 42 |
 
-| Tham số     | Kiểu dữ liệu | Ý nghĩa                                                                                                                            | Giá trị dự kiến            |
-| :----------- | :-------------- | :----------------------------------------------------------------------------------------------------------------------------------- | :----------------------------- |
-| `X`        | `np.ndarray`  | Ma trận điểm ảnh cần phân cụm `(N, 3)`, kiểu `float32`.                                                                  | Lấy từ ảnh sau resize       |
-| `k`        | `int`         | Số lượng cụm màu cần gom (dùng cùng giá trị $K$ với bên Scikit-Learn để so sánh).                                   | $K = 4$ hoặc $5$          |
-| `attempts` | `int`         | Số lần chạy lại với các tâm khởi tạo khác nhau để chọn lần kết quả tốt nhất (tương tự `n_init` của sklearn). | 10 lần                        |
-| `max_iter` | `int`         | Số vòng lặp tối đa.                                                                                                             | 300 vòng                      |
-| `epsilon`  | `float`       | Ngưỡng sai số dừng hội tụ theo chuẩn của OpenCV.                                                                             | 1.0 (trên thang RGB [0, 255]) |
+Cùng giá trị ngưỡng hoặc seed không có nghĩa hai thư viện dùng cùng điều kiện dừng hay chọn cùng tâm ban đầu. Cần ghi rõ quy ước của mỗi phương án khi so sánh.
 
 ---
 
 ## 5. Đầu ra (Output)
 
-Hàm `cv2.kmeans` sẽ trả về trực tiếp một tuple gồm 3 giá trị:
+- Bộ tâm màu kích thước $(K,3)$ và N nhãn cụm theo thứ tự pixel chung.
+- Compactness: tổng bình phương khoảng cách từ pixel đến tâm được gán, cùng ý nghĩa toán học với WCSS.
+- Thời gian phân cụm, cấu hình đã dùng và các chỉ số đối chiếu với Scikit-Learn.
 
-- **`compactness` (Độ nén):** Số thực biểu thị tổng bình phương khoảng cách từ các pixel đến tâm cụm của nó. Giá trị này về mặt toán học chính là quán tính WCSS / Inertia.
-- **`labels` (Nhãn cụm):** Mảng nhãn 1 chiều kích thước `(N,)`, mỗi phần tử là số nguyên từ $0$ đến $K-1$. (Lưu ý: hàm gốc của OpenCV trả về mảng 2 chiều `(N, 1)` nên cần làm phẳng thành mảng 1 chiều để đồng bộ với các phần khác).
-- **`centers` (Tâm cụm màu):** Mảng kích thước `(K, 3)`, lưu màu RGB của các tâm cụm tìm được.
-- **Báo cáo đối chiếu (`comparison_report`):** Một bảng hoặc từ điển tóm tắt kết quả so sánh với Scikit-Learn (độ chênh lệch WCSS %, tỷ lệ trùng nhãn %).
+Nhãn bàn giao cần thống nhất thành một dãy N phần tử. Các chỉ số đối chiếu là phép đo giữa hai phân hoạch, không phải độ chính xác so với nhãn vật thể.
 
 ---
 
 ## 6. Cách thuật toán hoạt động (How it works)
 
-```mermaid
-flowchart TD
-    A["Nhận ma trận pixel X (float32)"] --> B["Thiết lập cờ tiêu chí dừng: cv2.TERM_CRITERIA_EPS + MAX_ITER"]
-    B --> C["Gọi hàm cv2.kmeans với cờ KMEANS_PP_CENTERS"]
-    C --> D["Nhận kết quả: compactness, labels, centers"]
-    D --> E["Căn chỉnh hoán vị nhãn giữa OpenCV và Scikit-Learn"]
-    E --> F["Tính tỷ lệ trùng khớp nhãn và chênh lệch WCSS"]
-```
+Quy trình dự kiến: nhận dữ liệu chung → kiểm tra K và thiết lập điều kiện dừng → phân cụm với OpenCV → chuẩn bị nhãn và tâm → đối chiếu với Scikit-Learn → bàn giao cho phần trình bày.
 
 ### Bước 1: Thiết lập tiêu chuẩn dừng cho OpenCV
 
-Trong OpenCV, điều kiện dừng được gộp chung bằng một tuple `criteria`:
-- Cờ kết hợp: `cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER`
-- Số vòng lặp tối đa: `max_iter`
-- Ngưỡng hội tụ: $\epsilon$ (`epsilon`)
+Kết hợp giới hạn vòng lặp với ngưỡng hội tụ: dừng khi đạt giới hạn hoặc thỏa điều kiện dịch chuyển tâm của OpenCV. Ghi rõ cấu hình; không suy ra hội tụ chỉ từ việc lần chạy đã kết thúc.
 
-Nghĩa là thuật toán sẽ dừng nếu số vòng lặp chạm tới `max_iter` HOẶC độ dịch chuyển tâm nhỏ hơn $\epsilon$.
+### Bước 2: Chạy phân cụm bằng OpenCV
 
-### Bước 2: Chạy phân cụm bằng `cv2.kmeans`
+Dự kiến dùng khởi tạo k-means++, thực hiện số lần khởi tạo đã thống nhất và chọn lần có WCSS nhỏ nhất. Đo thời gian phần phân cụm, tách khỏi đọc ảnh và vẽ biểu đồ để các phép đo có cùng phạm vi.
 
-Gọi hàm với cờ `cv2.KMEANS_PP_CENTERS` (khởi tạo tâm theo kiểu k-means++ giống Scikit-Learn):
-```python
-compactness, labels, centers = cv2.kmeans(
-    data=X,
-    K=k,
-    bestLabels=None,
-    criteria=criteria,
-    attempts=attempts,
-    flags=cv2.KMEANS_PP_CENTERS
-)
-```
+### Bước 3: Thuật toán đối chiếu với Scikit-Learn
 
-### Bước 3: Thuật toán đối chiếu với Scikit-Learn (`compare_with_sklearn`)
-
-1. **So sánh quán tính:**
-   Tính độ chênh lệch tương đối giữa quán tính của Scikit-Learn và độ nén của OpenCV:
+1. **So sánh WCSS:** với WCSS của Scikit-Learn lớn hơn 0, tính chênh lệch tương đối:
 
 $$
-\Delta_{\text{WCSS}} = \frac{|\text{Inertia}_{\text{sklearn}} - \text{Compactness}_{\text{opencv}}|}{\text{Inertia}_{\text{sklearn}}} \times 100\,\%
+\Delta_{\mathrm{WCSS}}=\frac{|\mathrm{WCSS}_{\mathrm{sklearn}}-\mathrm{WCSS}_{\mathrm{opencv}}|}{\mathrm{WCSS}_{\mathrm{sklearn}}}\times100\%
 $$
 
-2. **Căn chỉnh nhãn (Label Alignment):**
-   Hai thư viện có thể đặt tên nhãn cụm khác nhau (ví dụ: cụm màu đỏ bên Scikit-Learn là nhãn $0$, nhưng bên OpenCV lại là nhãn $2$). Đây chỉ là cách đánh số, bản chất gom cụm không thay đổi.
-   Trước khi so sánh tỷ lệ trùng khớp nhãn, cần dùng ma trận nhầm lẫn (Confusion Matrix) hoặc thuật toán gán Hungary để ghép cặp nhãn tương ứng giữa 2 bên.
+Nếu mốc bằng 0, chỉ báo chênh lệch tuyệt đối và ghi tỷ lệ không xác định để tránh chia cho 0.
 
-3. **Tính tỷ lệ trùng khớp nhãn (Label Agreement):**
-   Sau khi đã hoán vị nhãn cho khớp, đếm số pixel có nhãn giống hệt nhau giữa 2 thư viện chia cho tổng số $N$ pixel.
+2. **Căn chỉnh nhãn:** số thứ tự cụm chỉ là tên gọi. Lập bảng đếm pixel theo cặp nhãn rồi dùng phép ghép một-một tối đa hóa tổng số pixel trùng nhau, chẳng hạn thuật toán Hungarian.
+3. **Tính mức tương đồng:** sau căn chỉnh, tính tỷ lệ pixel cùng nhãn. Có thể bổ sung ARI và NMI, là các chỉ số không phụ thuộc cách đánh số cụm.
 
 ---
 
 ## 7. Cách đánh giá kết quả (Metrics evaluation)
 
-- **Độ chênh lệch quán tính:** Kỳ vọng chênh lệch giữa hai thư viện rất nhỏ (dưới 1%), vì cùng là thuật toán K-Means bám theo tiêu chí tối thiểu hóa WCSS.
-- **Tỷ lệ trùng khớp nhãn:** Quan sát xem tỷ lệ trùng khớp có cao không. Nếu đạt trên 90% nghĩa là cả hai thư viện đều phân đoạn ra các mảng màu gần như y hệt nhau.
-- **Thời gian thực thi:** Đo thời gian chạy của hàm C++ trong OpenCV so với Python thuần để đưa vào phần nhận xét của báo cáo bài lab.
+- Đối chiếu WCSS trên cùng dữ liệu và K; xem xét khác biệt khởi tạo và điều kiện dừng trước khi kết luận về chênh lệch.
+- Kết hợp tỷ lệ trùng nhãn, ARI, NMI với ảnh minh họa. Không đặt một ngưỡng phần trăm tùy ý để kết luận hai phân hoạch tương đương.
+- Đo thời gian trong cùng môi trường và cùng phạm vi công việc. Nếu thời gian quá ngắn hoặc dao động lớn, lặp lại phép đo và ghi nhận độ dao động.
+- Kiểm tra riêng phép căn chỉnh bằng hai bộ nhãn chỉ khác tên cụm; sau căn chỉnh phải trùng hoàn toàn.
 
 ---
 
 ## 8. Mấy điểm dễ lỗi cần chú ý (Lưu ý khi làm)
 
-- **Shape của mảng nhãn:** Mặc định OpenCV trả về mảng nhãn có kích thước `(N, 1)` thay vì `(N,)`. Nếu không làm phẳng bằng `.flatten()`, khi đưa sang hàm tạo ảnh của nhóm sẽ bị lỗi lệch chiều ma trận.
-- **Màu sắc BGR và RGB:** OpenCV đọc ảnh mặc định bằng hệ màu BGR. Nhóm phải chắc chắn ma trận điểm ảnh truyền vào hàm này đã được đổi sang RGB ở bước tiền xử lý, tránh việc tâm cụm ra màu ngược (ví dụ đỏ thành xanh).
-- **Ý nghĩa của việc so sánh nhãn:** Cần giải thích rõ cho giảng viên hiểu là số thứ tự cụm chỉ là quy ước ngẫu nhiên, không được lấy nhãn của OpenCV trừ trực tiếp cho nhãn Scikit-Learn mà bắt buộc phải căn chỉnh hoán vị trước.
+- Nhãn cần được đưa về cùng dạng và thứ tự trước khi so sánh hoặc tái tạo ảnh.
+- Không nhầm BGR ở bước đọc ảnh với RGB dùng cho phân cụm và hiển thị.
+- Không so sánh trực tiếp số thứ tự nhãn giữa hai phương án khi chưa căn chỉnh.
+- Cùng K và cùng seed không bảo đảm cùng nghiệm; khác biệt nhãn không tự động là lỗi.
+- Với ảnh một màu, WCSS có thể bằng 0; phép chia tương đối cần có cách diễn giải riêng.
 
 ---
 
-## 9. Cách nối với các file khác trong bài (Tính logic hệ thống)
+## 9. Cách nối với các phần khác trong bài (Tính logic hệ thống)
 
-- **Nhận dữ liệu từ đâu:** Nhận ma trận `pixel_matrix` từ `src/data/preprocessing.py`.
-- **Cung cấp dữ liệu cho ai:**
-  - Trả kết quả nhãn và tâm cho `src/segmentation/segmenter.py` để thử dựng ảnh phân đoạn bằng OpenCV.
-  - Trả bảng so sánh chỉ số sang `src/evaluation/visualization.py` và lưu số liệu vào báo cáo tổng kết.
-- **File code sẽ viết:** `src/models/kmeans_opencv.py`.
-- **File test kiểm tra:** `tests/test_models.py` (kiểm tra hàm căn chỉnh hoán vị nhãn trên mảng giả lập nhỏ).
+Phần chuẩn bị dữ liệu cung cấp cùng ma trận pixel cho OpenCV và Scikit-Learn. Mỗi phương án bàn giao bộ tâm và nhãn cho phần tái tạo theo cùng quy ước kích thước và màu.
+
+Phần đánh giá nhận hai bộ nhãn cùng thứ tự pixel, WCSS và thời gian có cùng phạm vi đo. Phần trình bày chỉ dùng thông tin đã được đối chiếu này để so sánh, tránh ghép số liệu của một lần thử với ảnh của một cấu hình khác.
 
 ---
 
 ## 10. Phân công trong nhóm
 
-- **Người phụ trách:** Tường & Trí (phối hợp kiểm thử).
-- **Nhiệm vụ:** Viết các hàm trong `src/models/kmeans_opencv.py`, thực hiện chạy thử nghiệm so sánh và ghi lại nhận xét đối đầu giữa hai thư viện.
+- **Người phụ trách:** Tường và Trí phối hợp thực hiện.
+- **Nhiệm vụ:** chuẩn bị phép đối chiếu, kiểm tra quy ước nhãn và màu, thống nhất cách đo thời gian và giải thích các giới hạn của việc so sánh trong bài lab.

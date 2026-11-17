@@ -4,100 +4,88 @@
 
 ## 1. Mục đích
 
-- Tìm hiểu cách thuật toán Mini-Batch K-Means giải quyết bài toán thời gian khi số lượng điểm ảnh $N$ tăng lớn.
-- Khảo sát sự đánh đổi (trade-off) trong bài lab:
-  - MiniBatch có giúp thời gian chạy nhanh hơn K-Means thông thường (Full K-Means) không? Tăng tốc được bao nhiêu lần?
-  - Bù lại, chất lượng gom cụm màu có bị giảm đi nhiều không (quán tính WCSS có bị tăng lên không, màu sắc ảnh phân đoạn nhìn bằng mắt có bị bệt hoặc sai khác nhiều không)?
-  - Đo độ tương đồng giữa hai cách gom cụm thông qua các chỉ số thống kê như Adjusted Rand Index (ARI) và Normalized Mutual Information (NMI).
+Tìm hiểu sự đánh đổi giữa thời gian phân cụm và mức độ gom màu khi dùng Mini-Batch K-Means thay cho Full K-Means. Đây là khảo sát tùy chọn sau khi baseline đáp ứng yêu cầu bài lab.
+
+Câu hỏi chính là Mini-Batch có lợi trên ảnh làm việc đã resize hay không, và việc chỉ cập nhật bằng từng lô nhỏ ảnh hưởng thế nào đến WCSS và ảnh phân đoạn. Không mặc định Mini-Batch sẽ nhanh hơn hoặc có chất lượng tương đương.
 
 ---
 
 ## 2. Trạng thái thiết kế (Status)
 
-- **Trạng thái:** `Bản thiết kế ban đầu (Pending Implementation)`
-- **Tiến độ code:** Đã có khung lớp `MiniBatchKMeansTrainer` trong `src/models/minibatch_kmeans.py`, các hàm còn để trống (`pass`), chưa chạy thử nghiệm trên các kích thước batch khác nhau.
+Đây là thiết kế ban đầu cho phép so sánh trên máy cá nhân. Tài liệu xác định dữ liệu, phạm vi đo và tiêu chí nhận xét, không đặt trước mức tăng tốc hoặc mức chênh lệch cần đạt.
 
 ---
 
 ## 3. Dữ liệu sử dụng (Data used)
 
-- **Dữ liệu:** Ma trận điểm ảnh `(N, 3)` từ bước tiền xử lý ảnh, kiểu `float32`, miền giá trị màu `[0.0, 255.0]`.
-- Thử nghiệm trên cùng một ảnh và cùng số cụm $K$ để kết quả so sánh thời gian và chất lượng là khách quan.
+Dùng cùng ma trận RGB $(N,3)$ từ ảnh đã resize, giá trị số thực hữu hạn trong $[0,255]$. Full K-Means và Mini-Batch phải dùng cùng ảnh, cùng K, cùng hệ màu và thứ tự pixel.
+
+K là số nguyên dương, không vượt số màu phân biệt. Nếu khảo sát thêm hệ màu khác, mỗi phép đối chiếu phải thực hiện riêng trong hệ màu đó.
 
 ---
 
 ## 4. Đầu vào (Input)
 
-Thuật toán thử nghiệm Mini-Batch cần nhận các tham số:
+| Thành phần | Ý nghĩa | Lựa chọn ban đầu |
+| --- | --- | --- |
+| Ma trận điểm ảnh | Dữ liệu làm việc $(N,3)$ | Ảnh đã resize |
+| Số cụm K | Giữ cố định giữa hai phương án | K hợp lệ đã chọn cho ảnh |
+| Kích thước lô đề nghị | Số pixel dự kiến trong mỗi lần cập nhật | 256, 512, 1024, 2048, 4096 |
+| Cấu hình Full K-Means | Mốc so sánh WCSS, nhãn và thời gian | Cùng dữ liệu, K và cấu hình đã thống nhất |
+| Số lần khởi tạo và giới hạn vòng lặp | Điều kiện thực nghiệm cần ghi rõ | 10 lần và 300 vòng |
+| Seed | Giúp lặp lại phép lấy mẫu trong cùng môi trường | 42 |
 
-| Tham số              | Kiểu dữ liệu | Ý nghĩa                                                                         | Giá trị dự kiến thử nghiệm    |
-| :-------------------- | :-------------- | :-------------------------------------------------------------------------------- | :---------------------------------- |
-| `X`                 | `np.ndarray`  | Ma trận điểm ảnh cần phân cụm `(N, 3)`.                                  | Dữ liệu ảnh thực tế            |
-| `k`                 | `int`         | Số lượng cụm màu (chọn cố định một số, ví dụ $K=5$).               | $K = 5$                           |
-| `batch_sizes`       | `List[int]`   | Danh sách các kích thước mẩu dữ liệu nhỏ (batch) cần thử.              | `[256, 512, 1024, 2048, 4096]`    |
-| `full_kmeans_model` | `KMeans`      | Mô hình Full K-Means đã chạy trước đó để làm mốc chuẩn so sánh.    | Mô hình từ `kmeans_sklearn.py` |
-| `random_state`      | `int`         | Seed ngẫu nhiên để việc bốc ngẫu nhiên từng batch không bị trồi sụt. | 42                                  |
+Kích thước lô phải là số nguyên dương. Nếu lớn hơn N, dùng N và ghi rõ cả giá trị đề nghị lẫn giá trị thực dùng. Nếu chọn số lần khởi tạo tự động theo thư viện, cần ghi rõ lựa chọn đó thay vì coi nó là một số lần cố định.
 
 ---
 
 ## 5. Đầu ra (Output)
 
-- **Bảng kết quả so sánh (`df_comparison`):** Một bảng dữ liệu ghi nhận chi tiết theo từng `batch_size`:
-  - `batch_size`: Kích thước lô thử nghiệm.
-  - `training_time`: Thời gian chạy thực tế (tính bằng mili-giây hoặc giây).
-  - `speedup`: Tỷ lệ tăng tốc so với Full K-Means (ví dụ nhanh hơn 2x, 3x).
-  - `inertia`: Quán tính WCSS của Mini-Batch.
-  - `inertia_increase_%`: Tỷ lệ WCSS bị tăng lên so với mốc chuẩn (chất lượng bị giảm bao nhiêu %).
-  - `ari`: Chỉ số Adjusted Rand Index đo mức độ đồng thuận nhãn (thang đo từ 0 đến 1).
-  - `nmi`: Chỉ số Normalized Mutual Information (đo thông tin tương hỗ giữa 2 cách chia cụm).
+Dự kiến tổng hợp một bảng đối chiếu gồm:
+
+- Kích thước lô đề nghị và kích thước lô thực dùng.
+- Thời gian phân cụm và hệ số tăng tốc so với Full K-Means.
+- WCSS trên toàn bộ dữ liệu làm việc và chênh lệch so với mốc.
+- ARI và NMI giữa hai bộ nhãn trên cùng tập pixel.
+- Cấu hình thực nghiệm đủ để lặp lại phép thử trong cùng môi trường.
+
+Ảnh minh họa cần dùng bộ tâm và nhãn của đúng cấu hình được ghi trong bảng. Các giá trị lô đề nghị khác nhau nhưng cùng giá trị thực dùng không được diễn giải là các mức lô khác nhau.
 
 ---
 
 ## 6. Cách thuật toán hoạt động (How it works)
 
-Thay vì mỗi vòng lặp phải lôi toàn bộ $N$ điểm ảnh ra để tính khoảng cách và cộng trung bình như K-Means truyền thống, Mini-Batch K-Means làm như sau:
+Mini-Batch K-Means khởi tạo K tâm, lấy một lô pixel ngẫu nhiên, gán các pixel đó vào tâm gần nhất rồi cập nhật tâm theo trung bình tích lũy. Lặp quá trình này đến điều kiện dừng. Sau cùng, gán toàn bộ dữ liệu làm việc vào bộ tâm để tính WCSS và các chỉ số đối chiếu.
 
-```mermaid
-flowchart TD
-    A["Bắt đầu: Khởi tạo K tâm cụm ban đầu"] --> B["Bốc ngẫu nhiên một mẩu nhỏ b pixel (batch)"]
-    B --> C["Chỉ gán các pixel trong batch này vào tâm gần nhất"]
-    C --> D["Cập nhật tâm dịch chuyển từng chút một theo trung bình cộng tích lũy"]
-    D --> E{"Đã hội tụ hoặc hết số vòng lặp?"}
-    E -- "Chưa" --> B
-    E -- "Rồi" --> F["Gán nhãn toàn bộ ảnh bằng bộ tâm cuối và tính thời gian, ARI, NMI"]
-```
+### Các bước chi tiết trong thử nghiệm
 
-### Các bước chi tiết trong thử nghiệm (`compare_batch_sizes`)
-
-1. **Lấy mốc chuẩn:**
-   - Lấy thời gian chạy và quán tính WCSS của mô hình `Full K-Means` làm mốc gốc ($t_{full}, WCSS_{full}$).
-2. **Quét qua từng kích thước `batch_size`:**
-   - Khởi tạo `MiniBatchKMeans(n_clusters=k, batch_size=b, random_state=42)`.
-   - Bấm giờ trước và sau khi gọi `fit(X)` để đo thời gian huấn luyện $t_{batch}$.
-   - Tính hệ số tăng tốc: $\text{Speedup} = \frac{t_{full}}{t_{batch}}$.
-   - Lấy giá trị WCSS và tính tỷ lệ quán tính bị tăng:
+1. **Lấy mốc Full K-Means:** đo phần phân cụm trên dữ liệu chung, lưu nhãn, tâm, WCSS và thời gian. Phạm vi đo không gồm đọc ảnh hoặc vẽ biểu đồ.
+2. **Khảo sát từng kích thước lô:** xác định số pixel thực dùng, giữ các cấu hình còn lại nhất quán, đo thời gian với cùng phạm vi như mốc.
+3. **Tính các chỉ số:** hệ số tăng tốc là $t_{\mathrm{full}}/t_{\mathrm{batch}}$. Với WCSS mốc lớn hơn 0, tính:
 
 $$
-\Delta_{\text{WCSS}} = \frac{\text{WCSS}_{\text{batch}} - \text{WCSS}_{\text{full}}}{\text{WCSS}_{\text{full}}} \times 100\,\%
+\Delta_{\mathrm{WCSS}}=\frac{\mathrm{WCSS}_{\mathrm{batch}}-\mathrm{WCSS}_{\mathrm{full}}}{\mathrm{WCSS}_{\mathrm{full}}}\times100\%
 $$
 
-   - Tính chỉ số `adjusted_rand_score` và `normalized_mutual_info_score` giữa nhãn của Mini-Batch và nhãn của Full K-Means để xem hai cách có chia các vùng màu tương tự nhau không.
-3. **Tổng hợp báo cáo:** Gom toàn bộ vào một bảng dữ liệu rõ ràng.
+Nếu WCSS mốc bằng 0, dùng chênh lệch tuyệt đối và ghi tỷ lệ không xác định. Chênh lệch có thể âm do hai phương án tìm được nghiệm khác nhau, nên không mặc định đây luôn là mức suy giảm.
+
+4. **Đối chiếu nhãn và hình ảnh:** tính ARI, NMI trên cùng N pixel rồi xem ảnh tái tạo. Tổng hợp số liệu cùng các giới hạn của phép đo.
 
 ---
 
 ## 7. Cách đánh giá kết quả (Metrics evaluation)
 
-- **Hệ số tăng tốc (Speedup factor):** Xem ở kích thước batch nào thì thuật toán chạy nhanh nhất mà không làm giảm chất lượng.
-- **Mức độ suy giảm chất lượng ($\Delta_{\text{WCSS}}$):** Kỳ vọng WCSS của Mini-Batch chỉ tăng nhẹ (dưới 3-5%) so với Full K-Means.
-- **Chỉ số tương đồng ARI và NMI:**
-  - Nếu $ARI > 0.85$ và $NMI > 0.85$, nghĩa là cách phân đoạn của Mini-Batch gần như tương đương với cách chạy chuẩn.
-- **Cảm quan mắt nhìn:** Xem ảnh phân đoạn tạo bởi Mini-Batch có xuất hiện các đốm hạt màu lạ (nhiễu) so với ảnh Full K-Means hay không.
+- **Thời gian:** hệ số tăng tốc lớn hơn 1 nghĩa là Mini-Batch nhanh hơn trong phép đo đó. Nếu thời gian dao động, lặp lại trong cùng điều kiện trước khi nhận xét.
+- **WCSS:** xem mức chênh lệch trên cùng dữ liệu, không đặt trước ngưỡng phần trăm chấp nhận khi chưa có mục tiêu cụ thể.
+- **ARI và NMI:** đo mức đồng thuận giữa hai phân hoạch. ARI có thể âm; NMI nằm trong $[0,1]$. Giá trị 1 biểu thị phân hoạch trùng nhau bất kể tên nhãn, không biểu thị độ chính xác nhận diện vật thể.
+- **Quan sát ảnh:** kiểm tra các vùng màu lớn và chi tiết bị mất để bổ sung cho các chỉ số. Không quyết định chỉ bằng tốc độ hoặc một điểm số duy nhất.
 
 ---
 
 ## 8. Mấy điểm dễ lỗi cần chú ý (Lưu ý khi làm)
 
-- **Kích thước batch quá nhỏ:** Nếu chọn `batch_size` quá nhỏ (ví dụ vài chục pixel), mẫu bốc ngẫu nhiên sẽ không đại diện đủ các mảng màu trên ảnh, làm tâm cụm bị giật cục và ảnh ra màu rất xấu.
-- **Ảnh kích thước nhỏ:** Nếu ảnh của bài lab đã được resize xuống khá nhỏ (ví dụ $128 \times 128 = 16.384$ pixel), Full K-Means vốn đã chạy rất nhanh (dưới 1 giây). Khi đó, Mini-Batch có thể không thấy rõ ưu thế tăng tốc do chi phí quản lý các mẩu nhỏ (overhead). Nhóm cần giải thích rõ điểm này trong phần báo cáo.
-- **Ý nghĩa của ARI và NMI:** Cần nhớ rằng ARI và NMI ở đây chỉ là so sánh giữa Mini-Batch với Full K-Means, chứ không phải so với "đáp án chuẩn của mắt người" (Ground Truth) vì bài này không có nhãn ground truth.
+- Lô quá nhỏ có thể đại diện kém cho các màu ít xuất hiện, làm tâm biến động hoặc bỏ sót vùng màu nhỏ.
+- Trên ảnh đã thu nhỏ, chi phí quản lý các lô có thể làm Mini-Batch không nhanh hơn Full K-Means; cần đo thay vì giả định.
+- Nhiều lô đề nghị có thể cùng bị giới hạn về N. Phải ghi giá trị thực dùng để tránh kết luận sai về ảnh hưởng của kích thước lô.
+- Không lấy thời gian của lần thử này ghép với nhãn hoặc WCSS của lần thử khác nếu cấu hình hay dữ liệu đã thay đổi.
+- Full K-Means là mốc đối chiếu của bài lab, không phải ground truth. WCSS, ARI và NMI không thay thế đánh giá phân vùng vật thể có nhãn chuẩn.

@@ -4,103 +4,84 @@
 
 ## 1. Mục đích
 
-- Triển khai yêu cầu **Bước 3: Apply K-Means Clustering** trong đề bài bằng thư viện chuẩn `sklearn.cluster.KMeans`:
-  - Thực hiện phân cụm màu nhanh chóng, tin cậy với thuật toán khởi tạo tối ưu `k-means++`.
-  - Có kết quả chuẩn mực để đối chiếu với cách tự code 4 bước bằng NumPy.
-- Khảo sát số cụm $K$ (từ $2$ đến $12$) và vẽ đường cong quán tính WCSS theo $K$ (phương pháp Elbow / khuỷu tay).
-- Áp dụng thuật toán hình học Kneedle để tự động tìm điểm gập khuỷu tay trên đồ thị, hỗ trợ chọn $K$ trực quan cho bài lab.
+Phương án này dùng K-Means của Scikit-Learn để đối chiếu với baseline và khảo sát ảnh hưởng của số cụm K. Khởi tạo k-means++ giúp chọn các tâm ban đầu có độ phân tán, nhưng không bảo đảm tìm được nghiệm tối ưu toàn cục.
+
+Elbow là khảo sát tùy chọn: quan sát mức giảm WCSS khi tăng K để gợi ý mức đơn giản hóa màu phù hợp. Không bắt buộc mọi ảnh phải có điểm khuỷu tay rõ ràng.
 
 ---
 
 ## 2. Trạng thái thiết kế (Status)
 
-- **Trạng thái:** `Bản thiết kế ban đầu (Pending Implementation)`
-- **Tiến độ code:** Đã có khung lớp `SklearnKMeansTrainer` trong file `src/models/kmeans_sklearn.py`, các hàm còn để trống (`pass`), chưa chạy quét K thật trên ảnh.
+Đây là thiết kế ban đầu cho phần đối chiếu và khảo sát K của bài lab. Phạm vi, dữ liệu và cách đánh giá được thống nhất trước khi thực hành; chưa đặt trước K hoặc điểm số cần đạt.
 
 ---
 
 ## 3. Dữ liệu sử dụng (Data used)
 
-- **Dữ liệu:** Dùng chung ma trận điểm ảnh `(N, 3)` kiểu `float32` trong đoạn `[0.0, 255.0]` nhận từ bước tiền xử lý ảnh (`src/data/preprocessing.py`).
-- **Lý do dùng chung:** Để đảm bảo việc so sánh giữa thuật toán tự viết và thuật toán của thư viện là công bằng (cùng một ảnh, cùng kích thước resize, cùng một ma trận màu).
+Dùng chung ma trận RGB $(N,3)$ từ ảnh đã resize, giá trị số thực hữu hạn trong $[0,255]$. Các phép đối chiếu phải giữ nguyên ảnh, kích thước làm việc, thứ tự pixel, hệ màu và thang đo.
+
+Đếm số màu phân biệt U trên ảnh làm việc để giới hạn $1\le K\le U$. Số pixel N và số màu U có thể khác nhau rất nhiều.
 
 ---
 
 ## 4. Đầu vào (Input)
 
-Thuật toán của Scikit-Learn và hàm quét Elbow nhận các tham số:
+| Thành phần | Ý nghĩa | Lựa chọn ban đầu |
+| --- | --- | --- |
+| Ma trận điểm ảnh | Dữ liệu RGB $(N,3)$, không rỗng | Ảnh sau resize |
+| K chỉ định | Số cụm người thực hành muốn dùng | Tùy chọn; phải nằm trong giới hạn dữ liệu |
+| Dải khảo sát K | Các giá trị để vẽ đường cong WCSS | Từ 2 đến 12, giới hạn lại theo U |
+| Số lần khởi tạo | Chọn lần chạy có WCSS nhỏ nhất trong các lần thử | 10 lần, ghi rõ khi thay đổi |
+| Giới hạn vòng lặp | Giới hạn cho mỗi lần chạy | 300 vòng |
+| Seed | Phục vụ kiểm tra lặp lại trong cùng môi trường | 42 |
 
-| Tham số         | Kiểu dữ liệu | Ý nghĩa                                                                                                     | Giá trị dự kiến                        |
-| :--------------- | :-------------- | :------------------------------------------------------------------------------------------------------------ | :----------------------------------------- |
-| `X`            | `np.ndarray`  | Ma trận điểm ảnh cần phân cụm, kích thước `(N, 3)`.                                               | Từ ảnh sau resize                        |
-| `k_range`      | `range`       | Khoảng giá trị $K$ cần quét thử để vẽ biểu đồ Elbow.                                            | `range(2, 13)` (từ 2 đến 12)          |
-| `n_init`       | `int`         | Số lần thuật toán chạy lại với các tâm khởi tạo khác nhau để chọn ra lần có WCSS nhỏ nhất. | 10 lần (theo mặc định của thư viện) |
-| `max_iter`     | `int`         | Số vòng lặp tối đa cho mỗi lần chạy.                                                                  | 300 vòng                                  |
-| `random_state` | `int`         | Seed ngẫu nhiên cố định để kết quả chạy không đổi giữa các lần thử.                          | 42                                         |
+Với ảnh một màu, chọn K=1 và bỏ qua tìm Elbow. Nếu K được chỉ định hợp lệ, khảo sát thêm không được làm thay đổi lựa chọn đó hoặc trở thành điều kiện để hoàn thành bài lab.
 
 ---
 
 ## 5. Đầu ra (Output)
 
-- **Bảng dữ liệu quét Elbow (`df_elbow`):** Bảng gồm 2 cột:
-  - Cột `K`: Giá trị số cụm thử nghiệm (2, 3, 4, ..., 12).
-  - Cột `Inertia`: Giá trị WCSS tương ứng với từng $K$.
-- **`optimal_k` (Số cụm tối ưu gợi ý):** Một số nguyên do thuật toán Kneedle tìm ra tại điểm gập của đồ thị (ví dụ dự kiến quanh mức 4 hoặc 5 tùy ảnh).
-- **Mô hình hoàn chỉnh (`final_model`):** Đối tượng `KMeans` của Scikit-Learn đã được huấn luyện xong với $K = K_{\text{optimal}}$, chứa:
-  - `cluster_centers_`: Tọa độ tâm cụm màu `(K, 3)`.
-  - `labels_`: Nhãn cụm của từng điểm ảnh `(N,)`.
-  - `inertia_`: Giá trị quán tính cuối cùng.
+- Bảng K và WCSS cho các giá trị hợp lệ đã khảo sát, nếu có.
+- K gợi ý từ đường cong, hoặc ghi nhận không xác định được Elbow rõ ràng.
+- K được chọn cho ảnh phân đoạn, phân biệt với K gợi ý nếu người thực hành quyết định khác.
+- Bộ tâm $(K,3)$, N nhãn cụm và WCSS tương ứng trên dữ liệu làm việc.
 
 ---
 
 ## 6. Cách thuật toán hoạt động (How it works)
 
-Quá trình xử lý gồm 2 giai đoạn chính:
+Trước tiên kiểm tra dữ liệu và giới hạn K. Sau đó thực hiện khảo sát nếu cần, chọn K và học bộ tâm dùng để phân đoạn. Với ảnh một màu, chuyển thẳng sang K=1; với K chỉ định, dùng giá trị hợp lệ đó cho bước cuối.
 
-```mermaid
-flowchart TD
-    A["Nhận ma trận pixel (N, 3)"] --> B["Giai đoạn 1: Quét K từ 2 đến 12 bằng sklearn KMeans"]
-    B --> C["Thu thập danh sách WCSS tương ứng từng K"]
-    C --> D["Tìm điểm khuỷu tay bằng thuật toán Kneedle"]
-    D --> E["Xác định được K tối ưu gợi ý"]
-    E --> F["Giai đoạn 2: Huấn luyện mô hình cuối cùng với K tối ưu này"]
-    F --> G["Trả về mô hình hoàn chỉnh để tái tạo ảnh"]
-```
+### Giai đoạn 1: Quét Elbow và tìm K gợi ý
 
-### Giai đoạn 1: Quét Elbow và tìm K tối ưu (`search_elbow` & `find_knee_point`)
+1. Lấy các K hợp lệ trong dải dự kiến; không thử số cụm lớn hơn số màu phân biệt.
+2. Với mỗi K, giữ nguyên dữ liệu, cách khởi tạo, số lần thử và điều kiện dừng; ghi WCSS.
+3. Quan sát điểm đường cong chuyển từ giảm nhanh sang giảm chậm. Có thể dùng Kneedle để hỗ trợ phát hiện điểm này.
+4. Nếu không có Elbow rõ, ghi nhận giới hạn đó và chọn K dựa trên mức chi tiết mong muốn. Với quá ít giá trị K để tạo thành đường cong có ý nghĩa, không diễn giải một điểm bất kỳ là Elbow.
 
-1. Lặp qua từng giá trị $K$ trong khoảng từ $2$ đến $12$.
-2. Với mỗi $K$, gọi `KMeans(n_clusters=K, init='k-means++', n_init=10, random_state=42)` và huấn luyện trên `X`.
-3. Lấy giá trị quán tính `model.inertia_` lưu vào danh sách.
-4. Tự động tìm điểm khuỷu tay (Elbow) bằng nguyên lý hình học Kneedle:
-   - Chuẩn hóa cả trục $K$ và trục WCSS về đoạn $[0, 1]$.
-   - Kẻ một đường thẳng nối điểm đầu $(K_{\min}, \text{WCSS}_{\max})$ và điểm cuối $(K_{\max}, \text{WCSS}_{\min})$.
-   - Với mỗi điểm trên đường cong thực tế, tính khoảng cách vuông góc từ điểm đó tới đường thẳng nối.
-   - Điểm nào có khoảng cách vuông góc xa nhất chính là điểm khuỷu tay (nơi tốc độ giảm của WCSS bắt đầu chậm lại rõ rệt). Điểm này được chọn làm `optimal_k`.
+Một cách tham khảo hình học là chuẩn hóa hai trục và đo độ lệch của đường cong so với đoạn nối hai đầu. Điểm lệch lớn nhất chỉ là gợi ý; cách này không chứng minh K tối ưu và không đồng nhất hoàn toàn với mọi bước của Kneedle.
 
-### Giai đoạn 2: Huấn luyện mô hình cuối cùng (`fit_final_model`)
+### Giai đoạn 2: Huấn luyện mô hình cuối cùng
 
-1. Dùng giá trị `optimal_k` ($K_{\text{optimal}}$) vừa tìm được để khởi tạo mô hình cuối cùng.
-2. Gọi `fit(X)` để học các tâm màu đại diện tốt nhất cho ảnh.
-3. Xuất ra bộ nhãn và tâm màu phục vụ tái tạo ảnh.
+Dùng K đã chọn để học các tâm màu trên toàn bộ dữ liệu làm việc. Nhãn, tâm và WCSS được bàn giao cho phần tái tạo và đánh giá; lưu lại cấu hình để có thể lặp lại phép thử trong cùng môi trường.
+
+Các ảnh minh họa theo nhiều K cũng phải tuân theo giới hạn số màu. Không cố tạo đủ một danh sách K định trước khi ảnh không có đủ màu.
 
 ---
 
 ## 7. Cách đánh giá kết quả (Metrics evaluation)
 
-1. **Độ dốc của đường cong WCSS:**
-   - Khi tăng $K$, WCSS luôn luôn giảm. Nhóm cần kiểm tra xem đường cong có đúng hình dạng dốc đứng lúc đầu rồi thoai thoải về sau hay không.
-2. **Quan sát trực quan theo từng K:**
-   - Thử nhìn ảnh tái tạo ở một vài giá trị $K$ khác nhau (ví dụ $K=3, 5, 8$) xem $K$ nào cho ra ảnh vừa đủ rõ các vùng màu mà không bị thừa thãi quá nhiều mảng màu vụn vặt.
-3. **Đối chiếu với code tự viết:**
-   - So sánh giá trị WCSS của Scikit-Learn với WCSS của file `kmeans_from_scratch.py` ở cùng một $K$ để kiểm tra xem thuật toán nhóm tự viết có tiệm cận với thư viện chuẩn hay không.
+- **WCSS:** chỉ so sánh trên cùng dữ liệu và thang đo. Giá trị tối ưu lý thuyết không tăng khi tăng K, nhưng các lần chạy độc lập có thể dừng ở nghiệm cục bộ khác nhau; không đòi hỏi đường cong thực nghiệm luôn giảm nghiêm ngặt.
+- **Quan sát ảnh:** so sánh một vài K hợp lệ để xem mức đơn giản hóa màu và chi tiết bị mất. Không đặt trước K=4 hay K=5 là tốt nhất.
+- **Đối chiếu baseline:** giữ cùng K, dữ liệu và ghi rõ khác biệt khởi tạo, điều kiện dừng. Chênh lệch WCSS cần được xem xét, không tự động là bằng chứng baseline sai.
+- **Silhouette, nếu khảo sát thêm:** chỉ tính khi tập đánh giá có ít nhất hai cụm và số cụm nhỏ hơn số mẫu. Nếu lấy mẫu, phân bổ gần theo tỷ lệ cụm với ít nhất một mẫu mỗi cụm khi ngân sách cho phép, dùng seed cố định và kiểm tra lại điều kiện sau lấy mẫu. Khi không đủ điều kiện, ghi rõ chỉ số không xác định, không coi đó là chất lượng kém.
 
 ---
 
 ## 8. Mấy điểm dễ lỗi cần chú ý (Lưu ý khi làm)
 
-- **Điểm Elbow không phải lúc nào cũng rõ:** Trên dữ liệu ảnh thực tế ngoài đời, màu sắc biến thiên liên tục, đường cong WCSS có thể giảm rất đều mà không có một điểm gập rõ mồn một. Khi đó thuật toán Kneedle vẫn sẽ tìm ra một điểm xa nhất theo toán học, nhưng nhóm phải tự kiểm tra lại bằng mắt xem ảnh có hợp lý không, không nên phó mặc hoàn toàn cho thuật toán.
-- **Thời gian chạy quét K:** Vì phải chạy K-Means tới 11 lần (từ $K=2$ đến $K=12$), mỗi lần lại chạy 10 lượt `n_init`, nên tổng cộng phải lặp 110 lượt. Nếu dùng ảnh gốc quá to sẽ bị đơ máy. Bắt buộc phải chạy trên ảnh đã resize nhỏ ở bước tiền xử lý.
-- **Thư viện phụ trợ:** Thuật toán Kneedle có thể dùng thư viện `kneed`, nhưng để đề phòng máy của thầy hoặc máy các bạn trong nhóm chưa cài thư viện này, file `kmeans_sklearn.py` sẽ viết sẵn một đoạn code hình học thuần bằng NumPy để tự tính mà không cần cài thêm gói ngoài.
-
----
+- Elbow có thể không rõ trên ảnh có màu biến thiên liên tục; không coi lựa chọn tự động là kết luận cuối cùng.
+- Quét nhiều K và nhiều lần khởi tạo làm tăng thời gian, nên dùng ảnh đã resize phù hợp với máy cá nhân.
+- Không để khảo sát K hoặc biểu đồ minh họa chặn trường hợp hợp lệ như ảnh một màu, K=1.
+- Mẫu Silhouette có thể bỏ sót cụm rất nhỏ; ngay cả lấy mẫu phân tầng cũng cần kiểm tra phân bổ mẫu và số cụm còn lại.
+- Nếu khảo sát HSV hoặc LAB, ghi đúng hệ màu và cách đo khoảng cách. Silhouette giữa các hệ tọa độ khác nhau không phải thước đo chung về chất lượng phân vùng vật thể.

@@ -17,7 +17,7 @@ Nguồn yêu cầu: [Practice Exercise 3.2.pdf](<../Practice%20Exercise%203.2.pd
 Các lựa chọn RGB, seed, cách resize, xử lý cụm rỗng và tiêu chí kiểm tra dưới đây là quyết định thiết kế của nhóm. Đề không ấn định K, kích thước resize hoặc ngưỡng chất lượng.
 
 ### Tài liệu thiết kế chi tiết từng thuật toán:
-- **Phương án 1 (Tự lập trình 4 bước theo đề bằng NumPy):** [kmeans_from_scratch.md](kmeans_from_scratch.md)
+- **Phương án 1 (K-Means từ đầu theo bốn bước của đề):** [kmeans_from_scratch.md](kmeans_from_scratch.md)
 - **Phương án 2 (Dùng Scikit-Learn & Dò tìm Elbow):** [kmeans_sklearn.md](kmeans_sklearn.md)
 - **Phương án 3 (Dùng OpenCV K-Means):** [kmeans_opencv.md](kmeans_opencv.md)
 - **Khảo sát thêm (Mini-Batch K-Means):** [minibatch_kmeans.md](minibatch_kmeans.md)
@@ -45,72 +45,24 @@ Cả nhóm thống nhất quy ước dữ liệu trước khi chia việc; cùng
 
 ## 4. Where — Thực hiện ở đâu?
 
-Thực hành cục bộ trên máy cá nhân với môi trường Python của bài lab. Dữ liệu ảnh đặt tại `data/raw/`; tài liệu thiết kế đặt tại `docs/Algorithms/`; tài liệu báo cáo thuộc `docs/reports/`. Không cần máy chủ hoặc hạ tầng cloud.
+Thực hành cục bộ trên máy cá nhân với môi trường Python của bài lab. Tách ảnh đầu vào, tài liệu thiết kế và phần ghi chép thực hành để dễ theo dõi. Không cần máy chủ hoặc hạ tầng cloud.
 
 ### 4.1. Target structure
 
 Cấu trúc được chia theo chức năng và nhiệm vụ trong quy trình thực hành: chuẩn bị dữ liệu, biểu diễn đặc trưng, phân cụm, tái tạo ảnh và đánh giá. Mỗi phần có trách nhiệm riêng để nhóm dễ phân công, kiểm tra, bảo trì và mở rộng. Ký hiệu `[tùy chọn]` dành cho phần ngoài baseline của bài lab.
 
-```text
-Lab_3.2_ADDITIONAL_K-MEANS_IMAGE_SEGMENTATION/
-├── .agents/                                  # Quy tắc và workflow làm việc
-├── .gitignore                                # Quy định tài nguyên loại khỏi Git
-├── AGENTS.md                                 # Hướng dẫn làm việc trong workspace
-├── README.md                                 # Tổng quan và hướng dẫn thực hành
-├── requirements.txt                          # Danh sách thư viện của môi trường
-├── data/                                     # Dữ liệu phục vụ bài lab
-│   └── raw/                                  # Các ảnh có thể chọn làm đầu vào
-├── docs/                                     # Đề bài, thiết kế và báo cáo thực hành
-│   ├── Practice Exercise 3.2.pdf              # Đề bài
-│   ├── Algorithms/                           # Tài liệu thiết kế thuật toán
-│   └── reports/                              # Tài liệu báo cáo thực hành
-├── notebooks/                                # Các bước minh họa tương tác
-│   ├── 01_image_loading_and_preprocessing.ipynb
-│   │                                         # Đọc ảnh và chuẩn bị ma trận pixel
-│   ├── 02_kmeans_scratch_and_convergence.ipynb
-│   │                                         # Các bước K-Means và điều kiện dừng
-│   ├── 03_elbow_and_sklearn_segmentation.ipynb
-│   │                                         # [tùy chọn] Khảo sát K và đối chiếu thư viện
-│   └── 04_advanced_comparisons_and_metrics.ipynb
-│                                             # [tùy chọn] Các phép so sánh bổ sung
-├── src/                                      # Phân chia trách nhiệm xử lý
-│   ├── __init__.py                           # Đánh dấu package
-│   ├── config.py                             # Tham số ảnh, K, seed và điều kiện dừng
-│   ├── data/                                 # Đọc và chuẩn bị dữ liệu
-│   │   ├── __init__.py                        # Đánh dấu package
-│   │   ├── loader.py                          # Đọc ảnh, kiểm tra đầu vào
-│   │   └── preprocessing.py                   # Chuyển màu, resize và flatten
-│   ├── features/                             # Quy ước đặc trưng màu
-│   │   ├── __init__.py                        # Đánh dấu package
-│   │   └── color_features.py                  # Biểu diễn và thống nhất thang đo màu
-│   ├── models/                               # Thuật toán phân cụm
-│   │   ├── __init__.py                        # Đánh dấu package
-│   │   ├── kmeans_scratch.py                  # Baseline: khởi tạo, gán, cập nhật, dừng
-│   │   ├── kmeans_sklearn.py                  # [tùy chọn] Đối chiếu với scikit-learn
-│   │   ├── kmeans_opencv.py                   # [tùy chọn] Đối chiếu với OpenCV
-│   │   ├── minibatch_kmeans.py                # [tùy chọn] Khảo sát MiniBatchKMeans
-│   │   └── persistence.py                     # [tùy chọn] Lưu và nạp tâm cùng cấu hình
-│   ├── segmentation/                         # Tạo ảnh từ nhãn và tâm cụm
-│   │   ├── __init__.py                        # Đánh dấu package
-│   │   └── segmenter.py                       # Ánh xạ màu tâm và phục hồi shape ảnh
-│   ├── evaluation/                           # Kiểm tra và trình bày
-│   │   ├── __init__.py                        # Đánh dấu package
-│   │   ├── metrics.py                         # WCSS và thông tin phục vụ đánh giá
-│   │   └── visualization.py                   # Hiển thị ảnh cạnh nhau và đồ thị
-│   ├── deployment/                           # [tùy chọn] Áp dụng cho ảnh khác
-│   │   ├── __init__.py                        # Đánh dấu package
-│   │   └── predictor.py                       # Gán pixel ảnh khác vào bộ tâm đã chọn
-│   └── utils/                                # Tiện ích dùng chung
-│       ├── __init__.py                        # Đánh dấu package
-│       └── logger.py                          # Thông báo tiến trình và lỗi
-├── tests/                                    # Kiểm tra theo trách nhiệm
-│   ├── __init__.py                            # Đánh dấu package
-│   ├── test_data.py                           # Kiểm tra ảnh, màu, resize và flatten
-│   ├── test_models.py                         # Kiểm tra phép gán, cập nhật và dừng
-│   ├── test_segmentation.py                   # Kiểm tra tái tạo ảnh và kích thước
-│   └── test_evaluation.py                     # Kiểm tra phép đo và dữ liệu hiển thị
-└── main.py                                   # Điều phối năm bước của bài lab
-```
+| Phần dự kiến | Trách nhiệm | Dữ liệu bàn giao |
+| --- | --- | --- |
+| Chuẩn bị dữ liệu | Chọn ảnh, đọc màu, resize giữ tỷ lệ, flatten | Ảnh RGB, kích thước trước/sau resize, ma trận pixel |
+| Biểu diễn đặc trưng | Thống nhất hệ màu và thang đo | Dữ liệu có quy ước màu rõ ràng |
+| Phân cụm baseline | Khởi tạo, gán nhãn, cập nhật tâm, kiểm tra dừng | Nhãn, tâm, WCSS và thông tin hội tụ |
+| Tái tạo ảnh | Gán màu tâm cho pixel và phục hồi kích thước | Ảnh phân đoạn ở kích thước làm việc và ban đầu |
+| Đánh giá và trình bày | Kiểm tra phép tính, đối chiếu ảnh và cấu hình | Minh họa song song, bảng số liệu dự kiến, checklist |
+| Cấu hình chung | Thống nhất ảnh, K, seed, resize và điều kiện dừng | Các lựa chọn dùng chung cho một lần thực hành |
+| Đối chiếu thư viện [tùy chọn] | So sánh Scikit-Learn, OpenCV, Mini-Batch trên cùng dữ liệu | Các phép đo có cùng phạm vi so sánh |
+| Áp dụng bảng màu [tùy chọn] | Dùng bộ tâm đã học để gán màu ảnh khác | Ảnh minh họa và giới hạn chuyển bảng màu |
+
+Các phần trên là cách chia trách nhiệm cho bài lab, không yêu cầu xây dựng thành các dịch vụ độc lập. Tài liệu đề bài, thiết kế và ghi chép thực hành được quản lý riêng với ảnh đầu vào.
 
 ### 4.2. Tiêu chí phân chia chức năng và nhiệm vụ
 
@@ -146,7 +98,7 @@ Chỉ khảo sát thêm K hoặc color space sau khi baseline đáp ứng tiêu 
 
 Loại bài toán là unsupervised clustering theo màu. Baseline sử dụng K-Means trên RGB với khoảng cách Euclidean vì biểu diễn đơn giản và bám trực tiếp các bước của đề.
 
-Chọn ít nhất một ảnh màu đọc được, có ba kênh. Khi đọc bằng OpenCV, đổi BGR sang RGB trước khi xử lý và hiển thị. Với ảnh grayscale hoặc có alpha, baseline thông báo yêu cầu ảnh RGB; việc hỗ trợ chuyển đổi được thống nhất riêng.
+Chọn ít nhất một ảnh màu đọc được. Khi đọc bằng OpenCV, đổi BGR sang RGB trước khi xử lý và hiển thị. Có thể hỗ trợ ảnh có alpha bằng cách trộn lên nền trắng trước khi đưa về RGB; ghi rõ lựa chọn này vì nền có thể tạo thêm một vùng màu. Nếu không chọn hỗ trợ alpha, thông báo để người thực hành chọn ảnh RGB. Ảnh grayscale nằm ngoài phạm vi đầu vào của bài lab.
 
 Resize giữ tỷ lệ khung hình. Đề xuất giới hạn cạnh dài ở 256 pixel và không phóng to ảnh nhỏ; đây là cấu hình khởi đầu, có thể điều chỉnh theo ảnh. Lưu kích thước thực tế sau resize, không giả định mọi ảnh đều vuông.
 
@@ -158,7 +110,9 @@ Resize giữ tỷ lệ khung hình. Đề xuất giới hạn cạnh dài ở 25
 | Nhãn cụm      | N số nguyên thuộc `[0,K-1]`, cùng thứ tự với ma trận pixel                       |
 | Tâm cụm       | `(K,3)`, số thực hữu hạn, cùng color space và thang đo với dữ liệu             |
 
-K là tham số được nhóm chọn trước mỗi lần thực hành; có thể bắt đầu bằng K=4 nếu ảnh có đủ màu phân biệt. Không coi giá trị khởi đầu là tối ưu. Chọn seed cố định, ví dụ 42, để thuận tiện kiểm tra lặp lại trong cùng môi trường.
+K là tham số được nhóm chọn trước mỗi lần thực hành và không vượt số màu phân biệt của ảnh làm việc. Baseline có thể bắt đầu bằng K=4 nếu đủ màu; nếu ít màu hơn, giảm K theo dữ liệu, riêng ảnh một màu dùng K=1. K do người thực hành chỉ định phải được kiểm tra và thông báo nếu không hợp lệ, không âm thầm thay thế. Không coi giá trị khởi đầu là tối ưu. Chọn seed cố định, ví dụ 42, để thuận tiện kiểm tra lặp lại trong cùng môi trường.
+
+Thống kê các kênh R, G, B và độ sáng theo công thức RGB phải dùng ảnh RGB. Nếu khảo sát HSV hoặc LAB, phân biệt thống kê ảnh RGB với đặc trưng dùng cho phân cụm, không diễn giải các kênh của hệ màu khác thành R, G, B.
 
 ### 6.2. Đánh giá được thống nhất trước khi thực hành
 
@@ -185,7 +139,7 @@ $$
 3. **Gán cụm:** mỗi pixel nhận nhãn của tâm gần nhất theo Euclidean distance; khi hòa, dùng cùng một quy tắc chọn chỉ số nhỏ nhất.
 4. **Cập nhật:** lấy trung bình các pixel của từng cụm. Nếu một cụm rỗng, gán lại tâm cụm đó bằng điểm ảnh ở xa các tâm còn lại nhất để tránh phép lấy trung bình trên tập rỗng; ghi nhận sự kiện để nhóm giải thích.
 5. **Kiểm tra dừng:** dùng độ dịch chuyển lớn nhất của các tâm không vượt ngưỡng đã chọn. Đề xuất ngưỡng `1e-4` trên thang RGB `[0,255]`, giới hạn 300 vòng; ghi rõ dừng vì hội tụ hay hết giới hạn.
-6. **Hoàn tất:** gán lại nhãn theo bộ tâm cuối và tính WCSS tương ứng để nhãn, tâm và phép đo nhất quán.
+6. **Hoàn tất:** cố định độ chính xác số của bộ tâm bàn giao, gán lại nhãn theo bộ tâm đó và tính WCSS tương ứng. Khi gán lại cùng dữ liệu bằng bộ tâm này, nhãn phải nhất quán; không thay đổi độ chính xác hoặc làm tròn tâm sau phép gán cuối.
 
 Ghi WCSS ở cùng một thời điểm của mỗi vòng lặp để kiểm tra xu hướng không tăng trong sai số số học. Nếu có bất thường, kiểm tra phép gán, cập nhật và độ chính xác số học trước khi diễn giải.
 
@@ -226,4 +180,12 @@ Phạm vi đánh giá là phân cụm màu trên ảnh phục vụ bài lab. Vi�
 
 ### 6.7. Mở rộng tùy chọn
 
-Nếu còn thời gian, khảo sát một vài K trên cùng ảnh bằng WCSS và quan sát trực quan; không bắt buộc phải tìm thấy điểm Elbow rõ ràng. Có thể so sánh thêm một color space khác khi đã thống nhất cách chuyển đổi và thang đo. Các mở rộng này không thay thế hoặc làm điều kiện tiên quyết cho năm bước cốt lõi.
+Nếu còn thời gian, khảo sát một vài K hợp lệ trên cùng ảnh bằng WCSS và quan sát trực quan. Dải dự kiến từ 2 đến 12 cần giới hạn theo số màu phân biệt; ảnh một màu dùng K=1 và bỏ qua tìm Elbow. Không bắt buộc phải tìm thấy điểm khuỷu tay rõ ràng. Khi K đã được chỉ định hợp lệ, khảo sát thêm không được làm thay đổi lựa chọn đó.
+
+Có thể so sánh thêm HSV hoặc LAB sau khi thống nhất cách chuyển đổi, thang đo và cách đưa màu tâm về RGB để hiển thị. Khoảng cách Euclidean trực tiếp trên HSV có giới hạn do Hue tuần hoàn; cần lưu ý khi diễn giải các màu gần ranh giới Hue.
+
+Nếu bổ sung Silhouette, chỉ tính khi tập đánh giá có ít nhất hai cụm và số cụm nhỏ hơn số mẫu. Khi lấy mẫu, dự kiến phân bổ gần theo tỷ lệ các cụm, giữ ít nhất một mẫu mỗi cụm nếu đủ ngân sách, cố định seed và kiểm tra lại điều kiện sau lấy mẫu. Nếu không đủ điều kiện, ghi nhận chỉ số không xác định. Silhouette giữa các hệ màu khác nhau phản ánh các khoảng cách khác nhau, không phải bằng chứng trực tiếp về chất lượng phân vùng vật thể.
+
+Đối chiếu Mini-Batch cần ghi cả kích thước lô đề nghị và thực dùng, cùng phạm vi đo thời gian và cùng dữ liệu đánh giá. Việc áp dụng bộ tâm sang ảnh khác chỉ là chuyển bảng màu đã học, không tự thích nghi với màu mới.
+
+Các mở rộng này không thay thế hoặc làm điều kiện tiên quyết cho năm bước cốt lõi.
